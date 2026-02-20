@@ -90,6 +90,20 @@ bbkt mcp --port 8080
 | `BITBUCKET_CLIENT_ID` | OAuth 2.0 Client ID | Only if using OAuth |
 | `BITBUCKET_CLIENT_SECRET` | OAuth 2.0 Client Secret | Only if using OAuth |
 
+### API Token Scopes & Security
+
+When creating your Atlassian API Token, we recommend granting the following scopes for a balanced experience:
+
+`read:account, read:user, read:repository:bitbucket, write:repository:bitbucket, read:pullrequest:bitbucket, write:pullrequest:bitbucket, read:pipeline:bitbucket, write:pipeline:bitbucket`
+
+**Token Introspection:** The `bbkt mcp` server dynamically evaluates your API token's granted scopes at startup. If you omit specific permissions (like `write:pipeline:bitbucket`), the server will completely hide the associated MCP tools (`trigger_pipeline`, `stop_pipeline`) from the AI agent to prevent hallucinated successes.
+
+**Explicit Tool Denial:** Even if your token has full admin privileges, you can explicitly deny the AI agent access to any tool using the `BITBUCKET_DISABLED_TOOLS` environment variable.
+
+```bash
+export BITBUCKET_DISABLED_TOOLS="delete_repository,delete_branch,delete_file"
+```
+
 ## Tools Provided
 
 - `list_repositories`: List repositories in a workspace.
