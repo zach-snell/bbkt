@@ -1,11 +1,8 @@
 package bitbucket
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListBranchesArgs struct {
@@ -17,10 +14,10 @@ type ListBranchesArgs struct {
 	Sort      string `json:"sort,omitempty" jsonschema:"Sort field"`
 }
 
-// ListBranchesHandler lists branches in a repository.
-func (c *Client) ListBranchesHandler(ctx context.Context, req *mcp.CallToolRequest, args ListBranchesArgs) (*mcp.CallToolResult, any, error) {
+// ListBranches lists branches in a repository.
+func (c *Client) ListBranches(args ListBranchesArgs) (*Paginated[Branch], error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	pagelen := args.Pagelen
@@ -41,13 +38,7 @@ func (c *Client) ListBranchesHandler(ctx context.Context, req *mcp.CallToolReque
 		path += "&sort=" + QueryEscape(args.Sort)
 	}
 
-	result, err := GetPaginated[Branch](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list branches: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[Branch](c, path)
 }
 
 type CreateBranchArgs struct {
@@ -57,10 +48,10 @@ type CreateBranchArgs struct {
 	Target    string `json:"target" jsonschema:"Target commit hash to branch from"`
 }
 
-// CreateBranchHandler creates a new branch from a commit hash.
-func (c *Client) CreateBranchHandler(ctx context.Context, req *mcp.CallToolRequest, args CreateBranchArgs) (*mcp.CallToolResult, any, error) {
+// CreateBranch creates a new branch from a commit hash.
+func (c *Client) CreateBranch(args CreateBranchArgs) (*Branch, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Name == "" || args.Target == "" {
-		return ToolResultError("workspace, repo_slug, name, and target are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, name, and target are required")
 	}
 
 	body := CreateBranchRequest{
@@ -71,16 +62,15 @@ func (c *Client) CreateBranchHandler(ctx context.Context, req *mcp.CallToolReque
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s/refs/branches",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to create branch: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to create branch: %v", err)
 	}
 
 	var branch Branch
 	if err := json.Unmarshal(respData, &branch); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(branch, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &branch, nil
 }
 
 type DeleteBranchArgs struct {
@@ -89,18 +79,14 @@ type DeleteBranchArgs struct {
 	Name      string `json:"name" jsonschema:"Branch name to delete"`
 }
 
-// DeleteBranchHandler deletes a branch.
-func (c *Client) DeleteBranchHandler(ctx context.Context, req *mcp.CallToolRequest, args DeleteBranchArgs) (*mcp.CallToolResult, any, error) {
+// DeleteBranch deletes a branch.
+func (c *Client) DeleteBranch(args DeleteBranchArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Name == "" {
-		return ToolResultError("workspace, repo_slug, and name are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, and name are required")
 	}
 
-	if err := c.Delete(fmt.Sprintf("/repositories/%s/%s/refs/branches/%s",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryEscape(args.Name))); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to delete branch: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Branch '%s' deleted successfully", args.Name)), nil, nil
+	return c.Delete(fmt.Sprintf("/repositories/%s/%s/refs/branches/%s",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryEscape(args.Name)))
 }
 
 type ListTagsArgs struct {
@@ -110,10 +96,10 @@ type ListTagsArgs struct {
 	Page      int    `json:"page,omitempty" jsonschema:"Page number"`
 }
 
-// ListTagsHandler lists tags in a repository.
-func (c *Client) ListTagsHandler(ctx context.Context, req *mcp.CallToolRequest, args ListTagsArgs) (*mcp.CallToolResult, any, error) {
+// ListTags lists tags in a repository.
+func (c *Client) ListTags(args ListTagsArgs) (*Paginated[Tag], error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	pagelen := args.Pagelen
@@ -128,13 +114,7 @@ func (c *Client) ListTagsHandler(ctx context.Context, req *mcp.CallToolRequest, 
 	path := fmt.Sprintf("/repositories/%s/%s/refs/tags?pagelen=%d&page=%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), pagelen, page)
 
-	result, err := GetPaginated[Tag](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list tags: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[Tag](c, path)
 }
 
 type CreateTagArgs struct {
@@ -144,10 +124,10 @@ type CreateTagArgs struct {
 	Target    string `json:"target" jsonschema:"Target commit hash"`
 }
 
-// CreateTagHandler creates a new tag.
-func (c *Client) CreateTagHandler(ctx context.Context, req *mcp.CallToolRequest, args CreateTagArgs) (*mcp.CallToolResult, any, error) {
+// CreateTag creates a new tag.
+func (c *Client) CreateTag(args CreateTagArgs) (*Tag, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Name == "" || args.Target == "" {
-		return ToolResultError("workspace, repo_slug, name, and target are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, name, and target are required")
 	}
 
 	body := map[string]interface{}{
@@ -158,14 +138,13 @@ func (c *Client) CreateTagHandler(ctx context.Context, req *mcp.CallToolRequest,
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s/refs/tags",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to create tag: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to create tag: %v", err)
 	}
 
 	var tag Tag
 	if err := json.Unmarshal(respData, &tag); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(tag, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &tag, nil
 }

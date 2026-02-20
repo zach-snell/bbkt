@@ -1,11 +1,8 @@
 package bitbucket
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListRepositoriesArgs struct {
@@ -17,10 +14,10 @@ type ListRepositoriesArgs struct {
 	Sort      string `json:"sort,omitempty" jsonschema:"Sort field (e.g. -updated_on)"`
 }
 
-// ListRepositoriesHandler lists repositories in a workspace.
-func (c *Client) ListRepositoriesHandler(ctx context.Context, req *mcp.CallToolRequest, args ListRepositoriesArgs) (*mcp.CallToolResult, any, error) {
+// ListRepositories lists repositories in a workspace.
+func (c *Client) ListRepositories(args ListRepositoriesArgs) (*Paginated[Repository], error) {
 	if args.Workspace == "" {
-		return ToolResultError("workspace is required"), nil, nil
+		return nil, fmt.Errorf("workspace is required")
 	}
 
 	pagelen := args.Pagelen
@@ -43,13 +40,7 @@ func (c *Client) ListRepositoriesHandler(ctx context.Context, req *mcp.CallToolR
 		path += "&sort=" + QueryEscape(args.Sort)
 	}
 
-	result, err := GetPaginated[Repository](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list repositories: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[Repository](c, path)
 }
 
 type GetRepositoryArgs struct {
@@ -57,20 +48,14 @@ type GetRepositoryArgs struct {
 	RepoSlug  string `json:"repo_slug" jsonschema:"Repository slug"`
 }
 
-// GetRepositoryHandler gets details for a single repository.
-func (c *Client) GetRepositoryHandler(ctx context.Context, req *mcp.CallToolRequest, args GetRepositoryArgs) (*mcp.CallToolResult, any, error) {
+// GetRepository gets details for a single repository.
+func (c *Client) GetRepository(args GetRepositoryArgs) (*Repository, error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
-	repo, err := GetJSON[Repository](c, fmt.Sprintf("/repositories/%s/%s",
+	return GetJSON[Repository](c, fmt.Sprintf("/repositories/%s/%s",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get repository: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(repo, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }
 
 type CreateRepositoryArgs struct {
@@ -78,14 +63,14 @@ type CreateRepositoryArgs struct {
 	RepoSlug    string `json:"repo_slug" jsonschema:"Repository slug (URL-friendly name)"`
 	Description string `json:"description,omitempty" jsonschema:"Repository description"`
 	Language    string `json:"language,omitempty" jsonschema:"Primary programming language"`
-	IsPrivate   bool   `json:"is_private,omitempty" jsonschema:"Whether the repo is private (default true)"`
+	IsPrivate   *bool  `json:"is_private,omitempty" jsonschema:"Whether the repo is private (default true)"`
 	ProjectKey  string `json:"project_key,omitempty" jsonschema:"Project key to assign the repo to"`
 }
 
-// CreateRepositoryHandler creates a new repository in a workspace.
-func (c *Client) CreateRepositoryHandler(ctx context.Context, req *mcp.CallToolRequest, args CreateRepositoryArgs) (*mcp.CallToolResult, any, error) {
+// CreateRepository creates a new repository in a workspace.
+func (c *Client) CreateRepository(args CreateRepositoryArgs) (*Repository, error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	body := map[string]interface{}{
@@ -98,15 +83,12 @@ func (c *Client) CreateRepositoryHandler(ctx context.Context, req *mcp.CallToolR
 	if args.Language != "" {
 		body["language"] = args.Language
 	}
-	// default value logic since boolean omitting is tricky
-	// but schema can handle it if we set true manually if not provided, though bool zero is false
-	// We'll trust the user passed it correctly, or default it appropriately in logic. The previous API:
-	// isPrivate := req.GetBool("is_private", true)
-	// We might need to assume it's true unless specified, or change the struct to *bool for exact differentiation.
-	// For now, if missing, bool is false. Let's just pass `args.IsPrivate`. Wait, previous behavior defaults to true.
-	// Since boolean pointers are tricky in structs without explicit instantiation, we'll keep `args.IsPrivate` and live with false default, or default to true if the old behavior was strict about it. Wait: previous behavior `isPrivate := req.GetBool("is_private", true)`. This means if it wasn't in the request at all, it's true. If it was false, it's false. *bool solves this.
-	// We will just pass `args.IsPrivate` (but we'll define a workaround below if needed, or simply pass it as is). I'll use `*bool` to preserve default logic.
-	body["is_private"] = true // default to true
+
+	if args.IsPrivate != nil {
+		body["is_private"] = *args.IsPrivate
+	} else {
+		body["is_private"] = true
+	}
 
 	if args.ProjectKey != "" {
 		body["project"] = map[string]string{"key": args.ProjectKey}
@@ -115,16 +97,15 @@ func (c *Client) CreateRepositoryHandler(ctx context.Context, req *mcp.CallToolR
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to create repository: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to create repository: %v", err)
 	}
 
 	var repo Repository
 	if err := json.Unmarshal(respData, &repo); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(repo, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &repo, nil
 }
 
 type DeleteRepositoryArgs struct {
@@ -132,16 +113,12 @@ type DeleteRepositoryArgs struct {
 	RepoSlug  string `json:"repo_slug" jsonschema:"Repository slug"`
 }
 
-// DeleteRepositoryHandler deletes a repository.
-func (c *Client) DeleteRepositoryHandler(ctx context.Context, req *mcp.CallToolRequest, args DeleteRepositoryArgs) (*mcp.CallToolResult, any, error) {
+// DeleteRepository deletes a repository.
+func (c *Client) DeleteRepository(args DeleteRepositoryArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return fmt.Errorf("workspace and repo_slug are required")
 	}
 
-	if err := c.Delete(fmt.Sprintf("/repositories/%s/%s",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug))); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to delete repository: %v", err)), nil, nil
-	}
-
-	return ToolResultText("Repository deleted successfully"), nil, nil
+	return c.Delete(fmt.Sprintf("/repositories/%s/%s",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)))
 }

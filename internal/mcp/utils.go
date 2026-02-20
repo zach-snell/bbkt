@@ -1,4 +1,4 @@
-package bitbucket
+package mcp
 
 import "github.com/modelcontextprotocol/go-sdk/mcp"
 

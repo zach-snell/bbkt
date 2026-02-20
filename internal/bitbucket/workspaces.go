@@ -1,11 +1,8 @@
 package bitbucket
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"net/url"
 )
 
 type ListWorkspacesArgs struct {
@@ -13,8 +10,8 @@ type ListWorkspacesArgs struct {
 	Page    int `json:"page,omitempty" jsonschema:"Page number (1-based)"`
 }
 
-// ListWorkspacesHandler returns workspaces for the authenticated user.
-func (c *Client) ListWorkspacesHandler(ctx context.Context, req *mcp.CallToolRequest, args ListWorkspacesArgs) (*mcp.CallToolResult, any, error) {
+// ListWorkspaces returns workspaces for the authenticated user.
+func (c *Client) ListWorkspaces(args ListWorkspacesArgs) (*Paginated[Workspace], error) {
 	pagelen := args.Pagelen
 	if pagelen == 0 {
 		pagelen = 25
@@ -25,30 +22,18 @@ func (c *Client) ListWorkspacesHandler(ctx context.Context, req *mcp.CallToolReq
 	}
 
 	path := fmt.Sprintf("/workspaces?pagelen=%d&page=%d", pagelen, page)
-	result, err := GetPaginated[Workspace](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list workspaces: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[Workspace](c, path)
 }
 
 type GetWorkspaceArgs struct {
 	Workspace string `json:"workspace" jsonschema:"Workspace slug or UUID"`
 }
 
-// GetWorkspaceHandler returns details for a single workspace.
-func (c *Client) GetWorkspaceHandler(ctx context.Context, req *mcp.CallToolRequest, args GetWorkspaceArgs) (*mcp.CallToolResult, any, error) {
+// GetWorkspace returns details for a single workspace.
+func (c *Client) GetWorkspace(args GetWorkspaceArgs) (*Workspace, error) {
 	if args.Workspace == "" {
-		return ToolResultError("workspace is required"), nil, nil
+		return nil, fmt.Errorf("workspace is required")
 	}
 
-	ws, err := GetJSON[Workspace](c, fmt.Sprintf("/workspaces/%s", QueryEscape(args.Workspace)))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get workspace: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(ws, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetJSON[Workspace](c, fmt.Sprintf("/workspaces/%s", url.QueryEscape(args.Workspace)))
 }

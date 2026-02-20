@@ -2,12 +2,12 @@
 go = "1.26"
 
 [tasks.build]
-description = "Build the bitbucket-mcp binary"
-run = "CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/bitbucket-mcp ./cmd/server"
+description = "Build the bbkt binary"
+run = "go build -ldflags='-s -w' -o bin/bbkt ./cmd/bbkt"
 
 [tasks.dev]
 description = "Build and run in dev mode"
-run = "go run ./cmd/server"
+run = "go run ./cmd/bbkt"
 
 [tasks.lint]
 description = "Run linters"
@@ -18,8 +18,12 @@ description = "Run tests"
 run = "go test -race -count=1 ./..."
 
 [tasks.install]
-description = "Build and install bitbucket-mcp to ~/.local/bin"
+description = "Build and install bbkt to ~/.local/bin"
 run = "./install.sh"
+
+[tasks.link]
+description = "Fast rebuild directly to ~/.local/bin/bbkt for rapid iteration"
+run = "go build -ldflags='-s -w' -o ~/.local/bin/bbkt ./cmd/bbkt"
 
 [tasks.fmt]
 description = "Format code"

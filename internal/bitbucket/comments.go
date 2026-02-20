@@ -1,11 +1,8 @@
 package bitbucket
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListPRCommentsArgs struct {
@@ -16,10 +13,10 @@ type ListPRCommentsArgs struct {
 	Page      int    `json:"page,omitempty" jsonschema:"Page number"`
 }
 
-// ListPRCommentsHandler lists comments on a pull request.
-func (c *Client) ListPRCommentsHandler(ctx context.Context, req *mcp.CallToolRequest, args ListPRCommentsArgs) (*mcp.CallToolResult, any, error) {
+// ListPRComments lists comments on a pull request.
+func (c *Client) ListPRComments(args ListPRCommentsArgs) (*Paginated[PRComment], error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
 	pagelen := args.Pagelen
@@ -34,13 +31,7 @@ func (c *Client) ListPRCommentsHandler(ctx context.Context, req *mcp.CallToolReq
 	path := fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments?pagelen=%d&page=%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, pagelen, page)
 
-	result, err := GetPaginated[PRComment](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list PR comments: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[PRComment](c, path)
 }
 
 type CreatePRCommentArgs struct {
@@ -54,10 +45,10 @@ type CreatePRCommentArgs struct {
 	ParentID  int    `json:"parent_id,omitempty" jsonschema:"Parent comment ID to reply to"`
 }
 
-// CreatePRCommentHandler creates a comment on a pull request.
-func (c *Client) CreatePRCommentHandler(ctx context.Context, req *mcp.CallToolRequest, args CreatePRCommentArgs) (*mcp.CallToolResult, any, error) {
+// CreatePRComment creates a comment on a pull request.
+func (c *Client) CreatePRComment(args CreatePRCommentArgs) (*PRComment, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 || args.Content == "" {
-		return ToolResultError("workspace, repo_slug, pr_id, and content are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, pr_id, and content are required")
 	}
 
 	body := CreateCommentRequest{
@@ -87,16 +78,15 @@ func (c *Client) CreatePRCommentHandler(ctx context.Context, req *mcp.CallToolRe
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to create comment: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to create comment: %v", err)
 	}
 
 	var comment PRComment
 	if err := json.Unmarshal(respData, &comment); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(comment, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &comment, nil
 }
 
 type UpdatePRCommentArgs struct {
@@ -107,10 +97,10 @@ type UpdatePRCommentArgs struct {
 	Content   string `json:"content" jsonschema:"New markdown content"`
 }
 
-// UpdatePRCommentHandler updates an existing comment.
-func (c *Client) UpdatePRCommentHandler(ctx context.Context, req *mcp.CallToolRequest, args UpdatePRCommentArgs) (*mcp.CallToolResult, any, error) {
+// UpdatePRComment updates an existing comment.
+func (c *Client) UpdatePRComment(args UpdatePRCommentArgs) (*PRComment, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 || args.CommentID == 0 || args.Content == "" {
-		return ToolResultError("workspace, repo_slug, pr_id, comment_id, and content are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, pr_id, comment_id, and content are required")
 	}
 
 	body := map[string]interface{}{
@@ -120,16 +110,15 @@ func (c *Client) UpdatePRCommentHandler(ctx context.Context, req *mcp.CallToolRe
 	respData, err := c.Put(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to update comment: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to update comment: %v", err)
 	}
 
 	var comment PRComment
 	if err := json.Unmarshal(respData, &comment); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(comment, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &comment, nil
 }
 
 type CommentActionArgs struct {
@@ -139,49 +128,33 @@ type CommentActionArgs struct {
 	CommentID int    `json:"comment_id" jsonschema:"Comment ID"`
 }
 
-// DeletePRCommentHandler deletes a comment on a pull request.
-//
-//nolint:dupl // boilerplate handlers share parameter extraction
-func (c *Client) DeletePRCommentHandler(ctx context.Context, req *mcp.CallToolRequest, args CommentActionArgs) (*mcp.CallToolResult, any, error) {
+// DeletePRComment deletes a comment on a pull request.
+func (c *Client) DeletePRComment(args CommentActionArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 || args.CommentID == 0 {
-		return ToolResultError("workspace, repo_slug, pr_id, and comment_id are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, pr_id, and comment_id are required")
 	}
 
-	if err := c.Delete(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID)); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to delete comment: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Comment #%d deleted successfully", args.CommentID)), nil, nil
+	return c.Delete(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID))
 }
 
-// ResolvePRCommentHandler resolves a comment thread.
-func (c *Client) ResolvePRCommentHandler(ctx context.Context, req *mcp.CallToolRequest, args CommentActionArgs) (*mcp.CallToolResult, any, error) {
+// ResolvePRComment resolves a comment thread.
+func (c *Client) ResolvePRComment(args CommentActionArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 || args.CommentID == 0 {
-		return ToolResultError("workspace, repo_slug, pr_id, and comment_id are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, pr_id, and comment_id are required")
 	}
 
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d/resolve",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID), nil)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to resolve comment: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Comment #%d resolved", args.CommentID)), nil, nil
+	return err
 }
 
-// UnresolvePRCommentHandler reopens a resolved comment thread.
-//
-//nolint:dupl // boilerplate handlers share parameter extraction
-func (c *Client) UnresolvePRCommentHandler(ctx context.Context, req *mcp.CallToolRequest, args CommentActionArgs) (*mcp.CallToolResult, any, error) {
+// UnresolvePRComment reopens a resolved comment thread.
+func (c *Client) UnresolvePRComment(args CommentActionArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 || args.CommentID == 0 {
-		return ToolResultError("workspace, repo_slug, pr_id, and comment_id are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, pr_id, and comment_id are required")
 	}
 
-	if err := c.Delete(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d/resolve",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID)); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to unresolve comment: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Comment #%d reopened", args.CommentID)), nil, nil
+	return c.Delete(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d/resolve",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID))
 }

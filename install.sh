@@ -2,9 +2,9 @@
 
 set -e
 
-echo "Building bitbucket-mcp..."
+echo "Building bbkt..."
 # Build the binary
-go build -ldflags="-s -w" -o bitbucket-mcp ./cmd/server
+go build -ldflags="-s -w" -o bbkt ./cmd/bbkt
 
 # Determine destination directory
 DEST_DIR="$HOME/.local/bin"
@@ -14,8 +14,8 @@ if [ ! -d "$DEST_DIR" ]; then
     mkdir -p "$DEST_DIR"
 fi
 
-echo "Installing bitbucket-mcp to $DEST_DIR..."
-mv bitbucket-mcp "$DEST_DIR/"
+echo "Installing bbkt to $DEST_DIR..."
+mv bbkt "$DEST_DIR/"
 
 echo "Installation complete!"
 echo "Ensure that $DEST_DIR is in your system PATH using:"

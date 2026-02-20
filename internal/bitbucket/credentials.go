@@ -123,19 +123,18 @@ func RemoveCredentials() error {
 	return nil
 }
 
-// APITokenLogin prompts the user for email + API token and stores them.
+// APITokenLogin prompts the user for email + API Token and stores them.
 func APITokenLogin() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println()
-	fmt.Println("Bitbucket API Token Authentication")
-	fmt.Println("===================================")
+	fmt.Println("Atlassian API Token Authentication (Basic Auth)")
+	fmt.Println("=============================================")
 	fmt.Println()
-	fmt.Println("Create an API token at:")
-	fmt.Println("  https://bitbucket.org/account/settings/api-tokens/")
+	fmt.Println("Create an API Token at:")
+	fmt.Println("  https://id.atlassian.com/manage-profile/security/api-tokens")
 	fmt.Println()
-	fmt.Println("Required scopes: Repositories (Read/Write), Pull Requests (Read/Write),")
-	fmt.Println("                 Pipelines (Read/Write), Account (Read)")
+	fmt.Println("Note: This replaces the deprecated Bitbucket App Passwords system.")
 	fmt.Println()
 
 	fmt.Print("Atlassian email: ")
@@ -148,34 +147,40 @@ func APITokenLogin() error {
 		return fmt.Errorf("email is required")
 	}
 
-	fmt.Print("API token: ")
+	fmt.Print("API Token: ")
 	token, err := reader.ReadString('\n')
 	if err != nil {
-		return fmt.Errorf("reading token: %w", err)
+		return fmt.Errorf("reading API Token: %w", err)
 	}
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return fmt.Errorf("API token is required")
+		return fmt.Errorf("API Token is required")
 	}
 
 	// Verify credentials by hitting the user API
 	fmt.Println("\nVerifying credentials...")
 	client := NewClient(email, token, "")
-	userData, err := client.Get("/user")
+	userData, scopesStr, err := client.GetWithScopes("/user")
 	if err != nil {
-		return fmt.Errorf("credential verification failed: %w\n\nCheck that your email and API token are correct", err)
+		if strings.Contains(err.Error(), "403 Forbidden") {
+			fmt.Println("\nToken verified successfully (403 Forbidden on /user means token is valid but lacks 'account' scopes).")
+		} else {
+			return fmt.Errorf("credential verification failed: %w\n\nCheck that your email and API Token are correct", err)
+		}
 	}
 
-	var user struct {
-		DisplayName string `json:"display_name"`
-		Nickname    string `json:"nickname"`
-	}
-	if jsonErr := json.Unmarshal(userData, &user); jsonErr == nil {
-		name := user.DisplayName
-		if name == "" {
-			name = user.Nickname
+	if userData != nil {
+		var user struct {
+			DisplayName string `json:"display_name"`
+			Nickname    string `json:"nickname"`
 		}
-		fmt.Printf("Authenticated as: %s\n", name)
+		if jsonErr := json.Unmarshal(userData, &user); jsonErr == nil {
+			name := user.DisplayName
+			if name == "" {
+				name = user.Nickname
+			}
+			fmt.Printf("Authenticated as: %s\n", name)
+		}
 	}
 
 	creds := &Credentials{
@@ -183,6 +188,7 @@ func APITokenLogin() error {
 		CreatedAt: time.Now(),
 		Email:     email,
 		APIToken:  token,
+		Scopes:    scopesStr,
 	}
 
 	if err := SaveCredentials(creds); err != nil {

@@ -1,11 +1,7 @@
 package bitbucket
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListCommitsArgs struct {
@@ -19,10 +15,10 @@ type ListCommitsArgs struct {
 	Path      string `json:"path,omitempty" jsonschema:"Filter commits that touch this file path"`
 }
 
-// ListCommitsHandler lists commits for a repository or branch.
-func (c *Client) ListCommitsHandler(ctx context.Context, req *mcp.CallToolRequest, args ListCommitsArgs) (*mcp.CallToolResult, any, error) {
+// ListCommits lists commits for a repository or branch.
+func (c *Client) ListCommits(args ListCommitsArgs) (*Paginated[Commit], error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	pagelen := args.Pagelen
@@ -53,13 +49,7 @@ func (c *Client) ListCommitsHandler(ctx context.Context, req *mcp.CallToolReques
 		endpoint += "&path=" + QueryEscape(args.Path)
 	}
 
-	result, err := GetPaginated[Commit](c, endpoint)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list commits: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[Commit](c, endpoint)
 }
 
 type GetCommitArgs struct {
@@ -68,20 +58,14 @@ type GetCommitArgs struct {
 	Commit    string `json:"commit" jsonschema:"Commit hash"`
 }
 
-// GetCommitHandler gets a single commit by hash.
-func (c *Client) GetCommitHandler(ctx context.Context, req *mcp.CallToolRequest, args GetCommitArgs) (*mcp.CallToolResult, any, error) {
+// GetCommit gets a single commit by hash.
+func (c *Client) GetCommit(args GetCommitArgs) (*Commit, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Commit == "" {
-		return ToolResultError("workspace, repo_slug, and commit are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and commit are required")
 	}
 
-	c2, err := GetJSON[Commit](c, fmt.Sprintf("/repositories/%s/%s/commit/%s",
+	return GetJSON[Commit](c, fmt.Sprintf("/repositories/%s/%s/commit/%s",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryEscape(args.Commit)))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get commit: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(c2, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }
 
 type GetDiffArgs struct {
@@ -91,10 +75,10 @@ type GetDiffArgs struct {
 	Path      string `json:"path,omitempty" jsonschema:"Filter diff to this file path"`
 }
 
-// GetDiffHandler gets the diff between two revisions or for a single commit.
-func (c *Client) GetDiffHandler(ctx context.Context, req *mcp.CallToolRequest, args GetDiffArgs) (*mcp.CallToolResult, any, error) {
+// GetDiff gets the diff between two revisions or for a single commit.
+func (c *Client) GetDiff(args GetDiffArgs) ([]byte, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Spec == "" {
-		return ToolResultError("workspace, repo_slug, and spec are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and spec are required")
 	}
 
 	endpoint := fmt.Sprintf("/repositories/%s/%s/diff/%s",
@@ -104,11 +88,7 @@ func (c *Client) GetDiffHandler(ctx context.Context, req *mcp.CallToolRequest, a
 	}
 
 	raw, _, err := c.GetRaw(endpoint)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get diff: %v", err)), nil, nil
-	}
-
-	return ToolResultText(string(raw)), nil, nil
+	return raw, err
 }
 
 type GetDiffStatArgs struct {
@@ -117,18 +97,12 @@ type GetDiffStatArgs struct {
 	Spec      string `json:"spec" jsonschema:"Diff spec: single commit hash or 'hash1..hash2'"`
 }
 
-// GetDiffStatHandler gets the diff stat for a revision spec.
-func (c *Client) GetDiffStatHandler(ctx context.Context, req *mcp.CallToolRequest, args GetDiffStatArgs) (*mcp.CallToolResult, any, error) {
+// GetDiffStat gets the diff stat for a revision spec.
+func (c *Client) GetDiffStat(args GetDiffStatArgs) (*Paginated[DiffStat], error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Spec == "" {
-		return ToolResultError("workspace, repo_slug, and spec are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and spec are required")
 	}
 
-	result, err := GetPaginated[DiffStat](c, fmt.Sprintf("/repositories/%s/%s/diffstat/%s",
+	return GetPaginated[DiffStat](c, fmt.Sprintf("/repositories/%s/%s/diffstat/%s",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.Spec))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get diffstat: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }

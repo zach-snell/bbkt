@@ -1,11 +1,8 @@
 package bitbucket
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListPullRequestsArgs struct {
@@ -17,10 +14,10 @@ type ListPullRequestsArgs struct {
 	Query     string `json:"query,omitempty" jsonschema:"Filter query"`
 }
 
-// ListPullRequestsHandler lists pull requests for a repository.
-func (c *Client) ListPullRequestsHandler(ctx context.Context, req *mcp.CallToolRequest, args ListPullRequestsArgs) (*mcp.CallToolResult, any, error) {
+// ListPullRequests lists pull requests for a repository.
+func (c *Client) ListPullRequests(args ListPullRequestsArgs) (*Paginated[PullRequest], error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	state := args.State
@@ -42,13 +39,7 @@ func (c *Client) ListPullRequestsHandler(ctx context.Context, req *mcp.CallToolR
 		path += "&q=" + QueryEscape(args.Query)
 	}
 
-	result, err := GetPaginated[PullRequest](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list pull requests: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[PullRequest](c, path)
 }
 
 type GetPullRequestArgs struct {
@@ -57,20 +48,14 @@ type GetPullRequestArgs struct {
 	PRID      int    `json:"pr_id" jsonschema:"Pull request ID"`
 }
 
-// GetPullRequestHandler gets details for a single pull request.
-func (c *Client) GetPullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args GetPullRequestArgs) (*mcp.CallToolResult, any, error) {
+// GetPullRequest gets details for a single pull request.
+func (c *Client) GetPullRequest(args GetPullRequestArgs) (*PullRequest, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
-	pr, err := GetJSON[PullRequest](c, fmt.Sprintf("/repositories/%s/%s/pullrequests/%d",
+	return GetJSON[PullRequest](c, fmt.Sprintf("/repositories/%s/%s/pullrequests/%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get pull request: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(pr, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }
 
 type CreatePullRequestArgs struct {
@@ -84,10 +69,10 @@ type CreatePullRequestArgs struct {
 	Draft             bool   `json:"draft,omitempty" jsonschema:"Create as a draft PR"`
 }
 
-// CreatePullRequestHandler creates a new pull request.
-func (c *Client) CreatePullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args CreatePullRequestArgs) (*mcp.CallToolResult, any, error) {
+// CreatePullRequest creates a new pull request.
+func (c *Client) CreatePullRequest(args CreatePullRequestArgs) (*PullRequest, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Title == "" || args.SourceBranch == "" {
-		return ToolResultError("workspace, repo_slug, title, and source_branch are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, title, and source_branch are required")
 	}
 
 	body := CreatePRRequest{
@@ -109,16 +94,15 @@ func (c *Client) CreatePullRequestHandler(ctx context.Context, req *mcp.CallTool
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to create pull request: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to create pull request: %v", err)
 	}
 
 	var pr PullRequest
 	if err := json.Unmarshal(respData, &pr); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(pr, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &pr, nil
 }
 
 type UpdatePullRequestArgs struct {
@@ -129,10 +113,10 @@ type UpdatePullRequestArgs struct {
 	Description *string `json:"description,omitempty" jsonschema:"New description for the pull request"`
 }
 
-// UpdatePullRequestHandler updates an existing pull request.
-func (c *Client) UpdatePullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args UpdatePullRequestArgs) (*mcp.CallToolResult, any, error) {
+// UpdatePullRequest updates an existing pull request.
+func (c *Client) UpdatePullRequest(args UpdatePullRequestArgs) (*PullRequest, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
 	body := map[string]interface{}{}
@@ -146,16 +130,15 @@ func (c *Client) UpdatePullRequestHandler(ctx context.Context, req *mcp.CallTool
 	respData, err := c.Put(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to update pull request: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to update pull request: %v", err)
 	}
 
 	var pr PullRequest
 	if err := json.Unmarshal(respData, &pr); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(pr, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &pr, nil
 }
 
 type MergePullRequestArgs struct {
@@ -167,10 +150,10 @@ type MergePullRequestArgs struct {
 	Message           string `json:"message,omitempty" jsonschema:"Commit message"`
 }
 
-// MergePullRequestHandler merges a pull request.
-func (c *Client) MergePullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args MergePullRequestArgs) (*mcp.CallToolResult, any, error) {
+// MergePullRequest merges a pull request.
+func (c *Client) MergePullRequest(args MergePullRequestArgs) (*PullRequest, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
 	strategy := args.MergeStrategy
@@ -188,16 +171,15 @@ func (c *Client) MergePullRequestHandler(ctx context.Context, req *mcp.CallToolR
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/merge",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to merge pull request: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to merge pull request: %v", err)
 	}
 
 	var pr PullRequest
 	if err := json.Unmarshal(respData, &pr); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(pr, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &pr, nil
 }
 
 type PullRequestActionArgs struct {
@@ -206,97 +188,65 @@ type PullRequestActionArgs struct {
 	PRID      int    `json:"pr_id" jsonschema:"Pull request ID"`
 }
 
-// ApprovePullRequestHandler approves a pull request.
-//
-//nolint:dupl // boilerplate handlers share parameter extraction
-func (c *Client) ApprovePullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args PullRequestActionArgs) (*mcp.CallToolResult, any, error) {
+// ApprovePullRequest approves a pull request.
+func (c *Client) ApprovePullRequest(args PullRequestActionArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/approve",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), nil)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to approve pull request: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Pull request #%d approved", args.PRID)), nil, nil
+	return err
 }
 
-// UnapprovePullRequestHandler removes approval from a pull request.
-func (c *Client) UnapprovePullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args PullRequestActionArgs) (*mcp.CallToolResult, any, error) {
+// UnapprovePullRequest removes approval from a pull request.
+func (c *Client) UnapprovePullRequest(args PullRequestActionArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
-	if err := c.Delete(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/approve",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID)); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to unapprove pull request: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Pull request #%d unapproved", args.PRID)), nil, nil
+	return c.Delete(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/approve",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID))
 }
 
-// DeclinePullRequestHandler declines a pull request.
-//
-//nolint:dupl // boilerplate handlers share parameter extraction
-func (c *Client) DeclinePullRequestHandler(ctx context.Context, req *mcp.CallToolRequest, args PullRequestActionArgs) (*mcp.CallToolResult, any, error) {
+// DeclinePullRequest declines a pull request.
+func (c *Client) DeclinePullRequest(args PullRequestActionArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/decline",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), nil)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to decline pull request: %v", err)), nil, nil
-	}
-
-	return ToolResultText(fmt.Sprintf("Pull request #%d declined", args.PRID)), nil, nil
+	return err
 }
 
-// GetPRDiffHandler gets the diff for a pull request.
-func (c *Client) GetPRDiffHandler(ctx context.Context, req *mcp.CallToolRequest, args PullRequestActionArgs) (*mcp.CallToolResult, any, error) {
+// GetPRDiff gets the diff for a pull request.
+func (c *Client) GetPRDiff(args PullRequestActionArgs) ([]byte, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
 	raw, _, err := c.GetRaw(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/diff",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get PR diff: %v", err)), nil, nil
-	}
-
-	return ToolResultText(string(raw)), nil, nil
+	return raw, err
 }
 
-// GetPRDiffStatHandler gets the diffstat for a pull request.
-func (c *Client) GetPRDiffStatHandler(ctx context.Context, req *mcp.CallToolRequest, args PullRequestActionArgs) (*mcp.CallToolResult, any, error) {
+// GetPRDiffStat gets the diffstat for a pull request.
+func (c *Client) GetPRDiffStat(args PullRequestActionArgs) (*Paginated[DiffStat], error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
-	result, err := GetPaginated[DiffStat](c, fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/diffstat",
+	return GetPaginated[DiffStat](c, fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/diffstat",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get PR diffstat: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }
 
-// ListPRCommitsHandler lists commits in a pull request.
-func (c *Client) ListPRCommitsHandler(ctx context.Context, req *mcp.CallToolRequest, args PullRequestActionArgs) (*mcp.CallToolResult, any, error) {
+// ListPRCommits lists commits in a pull request.
+func (c *Client) ListPRCommits(args PullRequestActionArgs) (*Paginated[Commit], error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PRID == 0 {
-		return ToolResultError("workspace, repo_slug, and pr_id are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pr_id are required")
 	}
 
-	result, err := GetPaginated[Commit](c, fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/commits",
+	return GetPaginated[Commit](c, fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/commits",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list PR commits: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }

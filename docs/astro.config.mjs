@@ -5,16 +5,16 @@ import starlight from '@astrojs/starlight';
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://zach-snell.github.io',
-	base: '/bitbucket-go-mcp',
+	base: '/bbkt',
 	integrations: [
 		starlight({
-			title: 'bitbucket-go-mcp',
-			description: 'A Model Context Protocol (MCP) server for Bitbucket integration in Go.',
+			title: 'bbkt',
+			description: 'A Bitbucket CLI and Model Context Protocol (MCP) server in Go.',
 			social: [
-				{ icon: 'github', label: 'GitHub', href: 'https://github.com/zach-snell/bitbucket-go-mcp' },
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/zach-snell/bbkt' },
 			],
 			editLink: {
-				baseUrl: 'https://github.com/zach-snell/bitbucket-go-mcp/edit/main/docs/',
+				baseUrl: 'https://github.com/zach-snell/bbkt/edit/main/docs/',
 			},
 			customCss: ['./src/styles/custom.css'],
 			sidebar: [

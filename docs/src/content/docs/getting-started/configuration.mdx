@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: How to connect bitbucket-go-mcp to your MCP client.
+description: How to connect bbkt to your MCP client.
 ---
 
 Once downloaded, you need to register the binary with an MCP-compliant application like Claude Desktop, Cursor, or Zed.
@@ -13,10 +13,10 @@ Modify your client's MCP configuration settings to point local invocations to th
 {
   "mcpServers": {
     "bitbucket": {
-      "command": "/absolute/path/to/bitbucket-mcp",
+      "command": "/absolute/path/to/bbkt",
       "env": {
         "BITBUCKET_USERNAME": "your-username",
-        "BITBUCKET_APP_PASSWORD": "your-app-password"
+        "BITBUCKET_API_TOKEN": "your-api-token"
       }
     }
   }
@@ -27,10 +27,10 @@ Modify your client's MCP configuration settings to point local invocations to th
 
 The server provides two ways to authenticate:
 
-### 1. App Passwords (Headless)
-Define `BITBUCKET_USERNAME` and `BITBUCKET_APP_PASSWORD` in the `env` block as presented above. This works best for CI/CD environments or stable headless integrations.
+### 1. API Tokens (Headless)
+Define `BITBUCKET_USERNAME` and `BITBUCKET_API_TOKEN` in the `env` block as presented above. This works best for CI/CD environments or stable headless integrations.
 
 ### 2. Interactive OAuth 2.0 (Desktop)
-If you omit the credentials, `bitbucket-go-mcp` will dynamically spawn a localized HTTP server and open an interactive authorization window via `https://bitbucket.org/site/oauth2/authorize` automatically. It will trap the callback to validate connection state. 
+If you omit the credentials, `bbkt` will dynamically spawn a localized HTTP server and open an interactive authorization window via `https://bitbucket.org/site/oauth2/authorize` automatically. It will trap the callback to validate connection state. 
 
 If running an OAuth flow, ensure you configure `BITBUCKET_CLIENT_ID` and `BITBUCKET_CLIENT_SECRET` in the `env` if using a custom OAuth registration.

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -18,12 +20,17 @@ type Client struct {
 	http     *http.Client
 	baseURL  string
 	username string
-	password string // app password or API token
+	password string // API token for Basic Auth
 	token    string // bearer access token
 
 	// OAuth credentials for auto-refresh
 	oauthCreds *Credentials
-	mu         sync.Mutex
+
+	// Cached scopes
+	apiTokenScopes []string
+	scopesFetched  bool
+
+	mu sync.Mutex
 }
 
 // NewClient creates a Bitbucket API client.
@@ -151,10 +158,73 @@ func (c *Client) Get(path string) ([]byte, error) {
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(data))
+		return nil, parseAPIError(resp.StatusCode, data)
 	}
 
 	return data, nil
+}
+
+// GetWithScopes performs a GET request and returns the response body and the x-oauth-scopes header.
+func (c *Client) GetWithScopes(path string) ([]byte, string, error) {
+	resp, err := c.do(http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, resp.Header.Get("X-Oauth-Scopes"), parseAPIError(resp.StatusCode, data)
+	}
+
+	return data, resp.Header.Get("X-Oauth-Scopes"), nil
+}
+
+// Scopes dynamically fetches and returns the token scopes by calling the API if not already cached.
+func (c *Client) Scopes() ([]string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.scopesFetched {
+		return c.apiTokenScopes, nil
+	}
+
+	if c.oauthCreds != nil && c.oauthCreds.Scopes != "" {
+		c.apiTokenScopes = parseScopesString(c.oauthCreds.Scopes)
+		c.scopesFetched = true
+		return c.apiTokenScopes, nil
+	}
+
+	_, scopesStr, err := c.GetWithScopes("/workspace")
+	if err != nil {
+		// Try /user as fallback if workspace fails
+		_, scopesStr, err = c.GetWithScopes("/user")
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch scopes: %w", err)
+		}
+	}
+
+	c.apiTokenScopes = parseScopesString(scopesStr)
+	c.scopesFetched = true
+	return c.apiTokenScopes, nil
+}
+
+func parseScopesString(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	var scopes []string
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			scopes = append(scopes, trimmed)
+		}
+	}
+	return scopes
 }
 
 // GetRaw performs a GET and returns raw bytes (for file content).
@@ -171,7 +241,7 @@ func (c *Client) GetRaw(path string) (data []byte, contentType string, err error
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, "", fmt.Errorf("API error %d: %s", resp.StatusCode, string(d))
+		return nil, "", parseAPIError(resp.StatusCode, d)
 	}
 
 	return d, resp.Header.Get("Content-Type"), nil
@@ -191,6 +261,52 @@ func (c *Client) Post(path string, body interface{}) ([]byte, error) {
 	}
 
 	resp, err := c.do(http.MethodPost, path, bodyData, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respData))
+	}
+
+	return respData, nil
+}
+
+// PostMultipart performs a POST request using multipart/form-data.
+// It takes a map of form fields and a map of file fields (where key is the field name and value is the file content).
+func (c *Client) PostMultipart(path string, fields map[string]string, files map[string][]byte) ([]byte, error) {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	for key, val := range fields {
+		if err := w.WriteField(key, val); err != nil {
+			return nil, fmt.Errorf("writing field %s: %w", key, err)
+		}
+	}
+
+	for key, fileBytes := range files {
+		// Bitbucket API expects the form field name to be the file path.
+		// We use CreateFormFile with the key as both fieldname and filename.
+		fw, err := w.CreateFormFile(key, key)
+		if err != nil {
+			return nil, fmt.Errorf("creating form file %s: %w", key, err)
+		}
+		if _, err := fw.Write(fileBytes); err != nil {
+			return nil, fmt.Errorf("writing file %s: %w", key, err)
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		return nil, fmt.Errorf("closing multipart writer: %w", err)
+	}
+
+	resp, err := c.do(http.MethodPost, path, b.Bytes(), w.FormDataContentType())
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +365,7 @@ func (c *Client) Delete(path string) error {
 
 	if resp.StatusCode >= 400 {
 		data, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(data))
+		return parseAPIError(resp.StatusCode, data)
 	}
 
 	return nil
@@ -298,4 +414,11 @@ func GetJSON[T any](c *Client, path string) (*T, error) {
 // QueryEscape URL-encodes a string for use in paths.
 func QueryEscape(s string) string {
 	return url.PathEscape(s)
+}
+
+func parseAPIError(statusCode int, body []byte) error {
+	if statusCode == http.StatusForbidden {
+		return fmt.Errorf("403 Forbidden: Permission denied. Ensure your Bitbucket App Password has the required scopes for this operation. Additional details: %s", string(body))
+	}
+	return fmt.Errorf("API error %d: %s", statusCode, string(body))
 }

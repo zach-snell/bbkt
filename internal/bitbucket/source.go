@@ -1,12 +1,8 @@
 package bitbucket
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type GetFileContentArgs struct {
@@ -16,10 +12,10 @@ type GetFileContentArgs struct {
 	Ref       string `json:"ref,omitempty" jsonschema:"Commit hash, branch, or tag (default: HEAD)"`
 }
 
-// GetFileContentHandler reads a file's content from the repository.
-func (c *Client) GetFileContentHandler(ctx context.Context, req *mcp.CallToolRequest, args GetFileContentArgs) (*mcp.CallToolResult, any, error) {
+// GetFileContent reads a file's content from the repository.
+func (c *Client) GetFileContent(args GetFileContentArgs) (content []byte, contentType string, err error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Path == "" {
-		return ToolResultError("workspace, repo_slug, and path are required"), nil, nil
+		return nil, "", fmt.Errorf("workspace, repo_slug, and path are required")
 	}
 
 	var endpoint string
@@ -31,21 +27,7 @@ func (c *Client) GetFileContentHandler(ctx context.Context, req *mcp.CallToolReq
 			QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.Path)
 	}
 
-	raw, contentType, err := c.GetRaw(endpoint)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get file content: %v", err)), nil, nil
-	}
-
-	// If it looks like JSON (directory listing), format it nicely
-	if strings.Contains(contentType, "application/json") {
-		var prettyJSON interface{}
-		if err := json.Unmarshal(raw, &prettyJSON); err == nil {
-			data, _ := json.MarshalIndent(prettyJSON, "", "  ")
-			return ToolResultText(string(data)), nil, nil
-		}
-	}
-
-	return ToolResultText(string(raw)), nil, nil
+	return c.GetRaw(endpoint)
 }
 
 type ListDirectoryArgs struct {
@@ -57,10 +39,10 @@ type ListDirectoryArgs struct {
 	MaxDepth  int    `json:"max_depth,omitempty" jsonschema:"Maximum depth of recursion (default: 1)"`
 }
 
-// ListDirectoryHandler lists files and directories at a given path.
-func (c *Client) ListDirectoryHandler(ctx context.Context, req *mcp.CallToolRequest, args ListDirectoryArgs) (*mcp.CallToolResult, any, error) {
+// ListDirectory lists files and directories at a given path.
+func (c *Client) ListDirectory(args ListDirectoryArgs) (*Paginated[TreeEntry], error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	pagelen := args.Pagelen
@@ -93,13 +75,7 @@ func (c *Client) ListDirectoryHandler(ctx context.Context, req *mcp.CallToolRequ
 
 	endpoint += fmt.Sprintf("?pagelen=%d&max_depth=%d", pagelen, maxDepth)
 
-	result, err := GetPaginated[TreeEntry](c, endpoint)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list directory: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[TreeEntry](c, endpoint)
 }
 
 type GetFileHistoryArgs struct {
@@ -110,10 +86,10 @@ type GetFileHistoryArgs struct {
 	Pagelen   int    `json:"pagelen,omitempty" jsonschema:"Results per page (default: 25)"`
 }
 
-// GetFileHistoryHandler gets the commit history for a specific file.
-func (c *Client) GetFileHistoryHandler(ctx context.Context, req *mcp.CallToolRequest, args GetFileHistoryArgs) (*mcp.CallToolResult, any, error) {
+// GetFileHistory gets the commit history for a specific file.
+func (c *Client) GetFileHistory(args GetFileHistoryArgs) (*Paginated[json.RawMessage], error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.Path == "" {
-		return ToolResultError("workspace, repo_slug, and path are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and path are required")
 	}
 
 	ref := args.Ref
@@ -129,13 +105,7 @@ func (c *Client) GetFileHistoryHandler(ctx context.Context, req *mcp.CallToolReq
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryEscape(ref), args.Path, pagelen)
 
 	// Filehistory returns commit objects with file metadata
-	result, err := GetPaginated[json.RawMessage](c, endpoint)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get file history: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[json.RawMessage](c, endpoint)
 }
 
 type SearchCodeArgs struct {
@@ -146,10 +116,10 @@ type SearchCodeArgs struct {
 	Page        int    `json:"page,omitempty" jsonschema:"Page number"`
 }
 
-// SearchCodeHandler searches for code in a repository using Bitbucket's code search.
-func (c *Client) SearchCodeHandler(ctx context.Context, req *mcp.CallToolRequest, args SearchCodeArgs) (*mcp.CallToolResult, any, error) {
+// SearchCode searches for code in a repository using Bitbucket's code search.
+func (c *Client) SearchCode(args SearchCodeArgs) ([]byte, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.SearchQuery == "" {
-		return ToolResultError("workspace, repo_slug, and query are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and query are required")
 	}
 
 	pagelen := args.Pagelen
@@ -164,16 +134,88 @@ func (c *Client) SearchCodeHandler(ctx context.Context, req *mcp.CallToolRequest
 	endpoint := fmt.Sprintf("/repositories/%s/%s/search/code?search_query=%s&pagelen=%d&page=%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryEscape(args.SearchQuery), pagelen, page)
 
-	raw, err := c.Get(endpoint)
+	return c.Get(endpoint)
+}
+
+type WriteFileArgs struct {
+	Workspace string `json:"workspace" jsonschema:"Workspace slug"`
+	RepoSlug  string `json:"repo_slug" jsonschema:"Repository slug"`
+	Path      string `json:"path" jsonschema:"Path to the file"`
+	Content   string `json:"content" jsonschema:"Content to write to the file"`
+	Message   string `json:"message" jsonschema:"Commit message"`
+	Branch    string `json:"branch,omitempty" jsonschema:"Branch to commit to"`
+	Author    string `json:"author,omitempty" jsonschema:"Commit author in 'Name <email>' format"`
+}
+
+// WriteFile writes or updates a file in the repository.
+func (c *Client) WriteFile(args WriteFileArgs) error {
+	if args.Workspace == "" || args.RepoSlug == "" || args.Path == "" {
+		return fmt.Errorf("workspace, repo_slug, and path are required")
+	}
+
+	endpoint := fmt.Sprintf("/repositories/%s/%s/src",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug))
+
+	fields := make(map[string]string)
+	if args.Message != "" {
+		fields["message"] = args.Message
+	}
+	if args.Branch != "" {
+		fields["branch"] = args.Branch
+	}
+	if args.Author != "" {
+		fields["author"] = args.Author
+	}
+
+	files := map[string][]byte{
+		args.Path: []byte(args.Content),
+	}
+
+	_, err := c.PostMultipart(endpoint, fields, files)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to search code: %v", err)), nil, nil
+		return fmt.Errorf("writing file: %w", err)
 	}
 
-	var prettyJSON interface{}
-	if err := json.Unmarshal(raw, &prettyJSON); err == nil {
-		data, _ := json.MarshalIndent(prettyJSON, "", "  ")
-		return ToolResultText(string(data)), nil, nil
+	return nil
+}
+
+type DeleteFileArgs struct {
+	Workspace string `json:"workspace" jsonschema:"Workspace slug"`
+	RepoSlug  string `json:"repo_slug" jsonschema:"Repository slug"`
+	Path      string `json:"path" jsonschema:"Path to the file to delete"`
+	Message   string `json:"message" jsonschema:"Commit message"`
+	Branch    string `json:"branch,omitempty" jsonschema:"Branch to commit to"`
+	Author    string `json:"author,omitempty" jsonschema:"Commit author in 'Name <email>' format"`
+}
+
+// DeleteFile deletes a file from the repository.
+func (c *Client) DeleteFile(args DeleteFileArgs) error {
+	if args.Workspace == "" || args.RepoSlug == "" || args.Path == "" {
+		return fmt.Errorf("workspace, repo_slug, and path are required")
 	}
 
-	return ToolResultText(string(raw)), nil, nil
+	endpoint := fmt.Sprintf("/repositories/%s/%s/src",
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug))
+
+	fields := make(map[string]string)
+	if args.Message != "" {
+		fields["message"] = args.Message
+	}
+	if args.Branch != "" {
+		fields["branch"] = args.Branch
+	}
+	if args.Author != "" {
+		fields["author"] = args.Author
+	}
+
+	// Bitbucket API expects "files" as the key and the path as the value
+	// However, we just send it as a regular text field
+	fields["files"] = args.Path
+
+	_, err := c.PostMultipart(endpoint, fields, nil)
+	if err != nil {
+		return fmt.Errorf("deleting file: %w", err)
+	}
+
+	return nil
 }

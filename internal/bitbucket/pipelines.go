@@ -1,11 +1,8 @@
 package bitbucket
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListPipelinesArgs struct {
@@ -17,10 +14,10 @@ type ListPipelinesArgs struct {
 	Status    string `json:"status,omitempty" jsonschema:"Filter by status"`
 }
 
-// ListPipelinesHandler lists pipeline runs for a repository.
-func (c *Client) ListPipelinesHandler(ctx context.Context, req *mcp.CallToolRequest, args ListPipelinesArgs) (*mcp.CallToolResult, any, error) {
+// ListPipelines lists pipeline runs for a repository.
+func (c *Client) ListPipelines(args ListPipelinesArgs) (*Paginated[Pipeline], error) {
 	if args.Workspace == "" || args.RepoSlug == "" {
-		return ToolResultError("workspace and repo_slug are required"), nil, nil
+		return nil, fmt.Errorf("workspace and repo_slug are required")
 	}
 
 	pagelen := args.Pagelen
@@ -43,13 +40,7 @@ func (c *Client) ListPipelinesHandler(ctx context.Context, req *mcp.CallToolRequ
 		path += "&status=" + QueryEscape(args.Status)
 	}
 
-	result, err := GetPaginated[Pipeline](c, path)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list pipelines: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return GetPaginated[Pipeline](c, path)
 }
 
 type GetPipelineArgs struct {
@@ -58,20 +49,14 @@ type GetPipelineArgs struct {
 	PipelineUUID string `json:"pipeline_uuid" jsonschema:"Pipeline UUID"`
 }
 
-// GetPipelineHandler gets details for a single pipeline run.
-func (c *Client) GetPipelineHandler(ctx context.Context, req *mcp.CallToolRequest, args GetPipelineArgs) (*mcp.CallToolResult, any, error) {
+// GetPipeline gets details for a single pipeline run.
+func (c *Client) GetPipeline(args GetPipelineArgs) (*Pipeline, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PipelineUUID == "" {
-		return ToolResultError("workspace, repo_slug, and pipeline_uuid are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pipeline_uuid are required")
 	}
 
-	pipe, err := GetJSON[Pipeline](c, fmt.Sprintf("/repositories/%s/%s/pipelines/%s",
+	return GetJSON[Pipeline](c, fmt.Sprintf("/repositories/%s/%s/pipelines/%s",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PipelineUUID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get pipeline: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(pipe, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }
 
 type TriggerPipelineArgs struct {
@@ -82,10 +67,10 @@ type TriggerPipelineArgs struct {
 	Pattern   string `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger"`
 }
 
-// TriggerPipelineHandler triggers a new pipeline run.
-func (c *Client) TriggerPipelineHandler(ctx context.Context, req *mcp.CallToolRequest, args TriggerPipelineArgs) (*mcp.CallToolResult, any, error) {
+// TriggerPipeline triggers a new pipeline run.
+func (c *Client) TriggerPipeline(args TriggerPipelineArgs) (*Pipeline, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.RefName == "" {
-		return ToolResultError("workspace, repo_slug, and ref_name are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and ref_name are required")
 	}
 
 	refType := args.RefType
@@ -111,16 +96,15 @@ func (c *Client) TriggerPipelineHandler(ctx context.Context, req *mcp.CallToolRe
 	respData, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pipelines",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug)), body)
 	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to trigger pipeline: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to trigger pipeline: %v", err)
 	}
 
 	var pipe Pipeline
 	if err := json.Unmarshal(respData, &pipe); err != nil {
-		return ToolResultError(fmt.Sprintf("failed to parse response: %v", err)), nil, nil
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	data, _ := json.MarshalIndent(pipe, "", "  ")
-	return ToolResultText(string(data)), nil, nil
+	return &pipe, nil
 }
 
 type StopPipelineArgs struct {
@@ -129,19 +113,15 @@ type StopPipelineArgs struct {
 	PipelineUUID string `json:"pipeline_uuid" jsonschema:"Pipeline UUID to stop"`
 }
 
-// StopPipelineHandler stops a running pipeline.
-func (c *Client) StopPipelineHandler(ctx context.Context, req *mcp.CallToolRequest, args StopPipelineArgs) (*mcp.CallToolResult, any, error) {
+// StopPipeline stops a running pipeline.
+func (c *Client) StopPipeline(args StopPipelineArgs) error {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PipelineUUID == "" {
-		return ToolResultError("workspace, repo_slug, and pipeline_uuid are required"), nil, nil
+		return fmt.Errorf("workspace, repo_slug, and pipeline_uuid are required")
 	}
 
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pipelines/%s/stopPipeline",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PipelineUUID), nil)
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to stop pipeline: %v", err)), nil, nil
-	}
-
-	return ToolResultText("Pipeline stopped successfully"), nil, nil
+	return err
 }
 
 type ListPipelineStepsArgs struct {
@@ -150,20 +130,14 @@ type ListPipelineStepsArgs struct {
 	PipelineUUID string `json:"pipeline_uuid" jsonschema:"Pipeline UUID"`
 }
 
-// ListPipelineStepsHandler lists steps in a pipeline.
-func (c *Client) ListPipelineStepsHandler(ctx context.Context, req *mcp.CallToolRequest, args ListPipelineStepsArgs) (*mcp.CallToolResult, any, error) {
+// ListPipelineSteps lists steps in a pipeline.
+func (c *Client) ListPipelineSteps(args ListPipelineStepsArgs) (*Paginated[PipelineStep], error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PipelineUUID == "" {
-		return ToolResultError("workspace, repo_slug, and pipeline_uuid are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, and pipeline_uuid are required")
 	}
 
-	result, err := GetPaginated[PipelineStep](c, fmt.Sprintf("/repositories/%s/%s/pipelines/%s/steps",
+	return GetPaginated[PipelineStep](c, fmt.Sprintf("/repositories/%s/%s/pipelines/%s/steps",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PipelineUUID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to list pipeline steps: %v", err)), nil, nil
-	}
-
-	data, _ := json.MarshalIndent(result, "", "  ")
-	return ToolResultText(string(data)), nil, nil
 }
 
 type GetPipelineStepLogArgs struct {
@@ -173,17 +147,13 @@ type GetPipelineStepLogArgs struct {
 	StepUUID     string `json:"step_uuid" jsonschema:"Step UUID"`
 }
 
-// GetPipelineStepLogHandler gets the log output for a pipeline step.
-func (c *Client) GetPipelineStepLogHandler(ctx context.Context, req *mcp.CallToolRequest, args GetPipelineStepLogArgs) (*mcp.CallToolResult, any, error) {
+// GetPipelineStepLog gets the log output for a pipeline step.
+func (c *Client) GetPipelineStepLog(args GetPipelineStepLogArgs) ([]byte, error) {
 	if args.Workspace == "" || args.RepoSlug == "" || args.PipelineUUID == "" || args.StepUUID == "" {
-		return ToolResultError("workspace, repo_slug, pipeline_uuid, and step_uuid are required"), nil, nil
+		return nil, fmt.Errorf("workspace, repo_slug, pipeline_uuid, and step_uuid are required")
 	}
 
 	raw, _, err := c.GetRaw(fmt.Sprintf("/repositories/%s/%s/pipelines/%s/steps/%s/log",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PipelineUUID, args.StepUUID))
-	if err != nil {
-		return ToolResultError(fmt.Sprintf("failed to get step log: %v", err)), nil, nil
-	}
-
-	return ToolResultText(string(raw)), nil, nil
+	return raw, err
 }
