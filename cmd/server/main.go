@@ -32,7 +32,7 @@ func main() {
 }
 
 func runServer() {
-	// Priority: env vars > stored credentials (API token or OAuth)
+	// Priority: env vars > stored credentials
 	username := os.Getenv("BITBUCKET_USERNAME")
 	password := os.Getenv("BITBUCKET_APP_PASSWORD")
 	token := os.Getenv("BITBUCKET_ACCESS_TOKEN")
@@ -46,7 +46,6 @@ func runServer() {
 		return
 	}
 
-	// Try stored credentials (new unified format, with legacy fallback)
 	creds, err := bitbucket.LoadCredentials()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "No credentials found. Either:\n")
@@ -57,31 +56,26 @@ func runServer() {
 		os.Exit(1)
 	}
 
+	var s *server.MCPServer
 	switch {
 	case creds.IsAPIToken():
-		s := mcpserver.New(creds.Email, creds.APIToken, "")
-		if err := server.ServeStdio(s); err != nil {
-			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
-			os.Exit(1)
-		}
+		s = mcpserver.New(creds.Email, creds.APIToken, "")
 	case creds.IsOAuth():
-		td := creds.ToTokenData()
-		s := mcpserver.NewFromToken(td)
-		if err := server.ServeStdio(s); err != nil {
-			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
-			os.Exit(1)
-		}
+		s = mcpserver.NewFromOAuth(creds)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown auth type in stored credentials: %s\n", creds.AuthType)
+		os.Exit(1)
+	}
+
+	if err := server.ServeStdio(s); err != nil {
+		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func runAuth() {
-	args := os.Args[2:]
-
 	// Check for --oauth flag
-	if slices.Contains(args, "--oauth") {
+	if slices.Contains(os.Args[2:], "--oauth") {
 		runOAuthLogin()
 		return
 	}
@@ -113,21 +107,11 @@ func runOAuthLogin() {
 		fmt.Fprintf(os.Stderr, "auth failed: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Migrate the token.json to the new credentials format
-	td, err := bitbucket.LoadToken()
-	if err == nil {
-		creds := bitbucket.CredentialsFromTokenData(td)
-		if saveErr := bitbucket.SaveCredentials(creds); saveErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not save to new credential format: %v\n", saveErr)
-		}
-	}
 }
 
 func runStatus() {
 	creds, err := bitbucket.LoadCredentials()
 	if err != nil {
-		// Also check env vars
 		if os.Getenv("BITBUCKET_ACCESS_TOKEN") != "" {
 			fmt.Println("Authenticated via BITBUCKET_ACCESS_TOKEN environment variable")
 			return
@@ -164,9 +148,6 @@ func runStatus() {
 			fmt.Println("  Status:  valid")
 		}
 		fmt.Printf("  File:    %s\n", path)
-
-	default:
-		fmt.Printf("Unknown auth type: %s\n", creds.AuthType)
 	}
 }
 

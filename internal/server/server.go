@@ -12,9 +12,9 @@ func New(username, password, token string) *server.MCPServer {
 	return newServer(client)
 }
 
-// NewFromToken creates the MCP server from a stored OAuth token with auto-refresh.
-func NewFromToken(td *bitbucket.TokenData) *server.MCPServer {
-	client := bitbucket.NewClientFromToken(td)
+// NewFromOAuth creates the MCP server from stored OAuth credentials with auto-refresh.
+func NewFromOAuth(creds *bitbucket.Credentials) *server.MCPServer {
+	client := bitbucket.NewClientFromOAuth(creds)
 	return newServer(client)
 }
 

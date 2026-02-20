@@ -21,9 +21,9 @@ type Client struct {
 	password string // app password or API token
 	token    string // bearer access token
 
-	// OAuth token data for auto-refresh
-	tokenData *TokenData
-	mu        sync.Mutex
+	// OAuth credentials for auto-refresh
+	oauthCreds *Credentials
+	mu         sync.Mutex
 }
 
 // NewClient creates a Bitbucket API client.
@@ -40,36 +40,36 @@ func NewClient(username, password, token string) *Client {
 	}
 }
 
-// NewClientFromToken creates a client from stored OAuth token data with auto-refresh.
-func NewClientFromToken(td *TokenData) *Client {
+// NewClientFromOAuth creates a client from stored OAuth credentials with auto-refresh.
+func NewClientFromOAuth(creds *Credentials) *Client {
 	return &Client{
 		http: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		baseURL:   baseURL,
-		token:     td.AccessToken,
-		tokenData: td,
+		baseURL:    baseURL,
+		token:      creds.AccessToken,
+		oauthCreds: creds,
 	}
 }
 
-// ensureValidToken checks if the OAuth token is expired and refreshes it if needed.
+// ensureValidToken checks if the OAuth token is expired and refreshes if needed.
 func (c *Client) ensureValidToken() error {
-	if c.tokenData == nil {
-		return nil // not using OAuth, skip
+	if c.oauthCreds == nil {
+		return nil
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if !c.tokenData.IsExpired() {
+	if !c.oauthCreds.IsExpired() {
 		return nil
 	}
 
-	if err := RefreshAccessToken(c.tokenData); err != nil {
+	if err := RefreshOAuth(c.oauthCreds); err != nil {
 		return fmt.Errorf("refreshing token: %w", err)
 	}
 
-	c.token = c.tokenData.AccessToken
+	c.token = c.oauthCreds.AccessToken
 	return nil
 }
 
@@ -102,17 +102,16 @@ func (c *Client) do(method, path string, body io.Reader, contentType string) (*h
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
 
-	// Auto-retry once on 401 if we have a refresh token
-	if resp.StatusCode == http.StatusUnauthorized && c.tokenData != nil && c.tokenData.RefreshToken != "" {
+	// Auto-retry once on 401 if we have OAuth with a refresh token
+	if resp.StatusCode == http.StatusUnauthorized && c.oauthCreds != nil && c.oauthCreds.RefreshToken != "" {
 		resp.Body.Close()
 		c.mu.Lock()
-		c.tokenData.ObtainedAt = time.Time{} // force expiry
+		c.oauthCreds.CreatedAt = time.Time{} // force expiry
 		c.mu.Unlock()
 		if err := c.ensureValidToken(); err != nil {
 			return nil, fmt.Errorf("refreshing after 401: %w", err)
 		}
 
-		// Rebuild the request with new token
 		req2, err := http.NewRequest(method, u, body)
 		if err != nil {
 			return nil, fmt.Errorf("creating retry request: %w", err)

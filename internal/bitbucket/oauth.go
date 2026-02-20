@@ -10,9 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -23,88 +21,19 @@ const (
 	tokenURL = "https://bitbucket.org/site/oauth2/access_token"
 )
 
-// TokenData holds OAuth tokens persisted to disk.
-type TokenData struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	TokenType    string    `json:"token_type"`
-	ExpiresIn    int       `json:"expires_in"`
-	Scopes       string    `json:"scopes"`
-	ObtainedAt   time.Time `json:"obtained_at"`
-	ClientID     string    `json:"client_id"`
-	ClientSecret string    `json:"client_secret"`
-}
-
-// IsExpired returns true if the access token is expired (with 5 min buffer).
-func (t *TokenData) IsExpired() bool {
-	expiry := t.ObtainedAt.Add(time.Duration(t.ExpiresIn) * time.Second)
-	return time.Now().After(expiry.Add(-5 * time.Minute))
-}
-
-// TokenPath returns the path to the token storage file.
-func TokenPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("getting home dir: %w", err)
-	}
-	return filepath.Join(home, ".config", "bitbucket-mcp", "token.json"), nil
-}
-
-// SaveToken persists token data to disk.
-func SaveToken(token *TokenData) error {
-	path, err := TokenPath()
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return fmt.Errorf("creating config dir: %w", err)
-	}
-
-	data, err := json.MarshalIndent(token, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling token: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("writing token file: %w", err)
-	}
-
-	return nil
-}
-
-// LoadToken reads persisted token data from disk.
-func LoadToken() (*TokenData, error) {
-	path, err := TokenPath()
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading token file: %w", err)
-	}
-
-	var token TokenData
-	if err := json.Unmarshal(data, &token); err != nil {
-		return nil, fmt.Errorf("parsing token file: %w", err)
-	}
-
-	return &token, nil
-}
-
-// RefreshAccessToken uses the refresh token to get a new access token.
-func RefreshAccessToken(token *TokenData) error {
+// RefreshOAuth uses the refresh token to get a new access token.
+// Updates the Credentials in place and persists to disk.
+func RefreshOAuth(creds *Credentials) error {
 	data := url.Values{
 		"grant_type":    {"refresh_token"},
-		"refresh_token": {token.RefreshToken},
+		"refresh_token": {creds.RefreshToken},
 	}
 
 	req, err := http.NewRequest(http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return fmt.Errorf("creating refresh request: %w", err)
 	}
-	req.SetBasicAuth(token.ClientID, token.ClientSecret)
+	req.SetBasicAuth(creds.ClientID, creds.ClientSecret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -133,19 +62,19 @@ func RefreshAccessToken(token *TokenData) error {
 		return fmt.Errorf("parsing refresh response: %w", err)
 	}
 
-	token.AccessToken = result.AccessToken
+	creds.AccessToken = result.AccessToken
 	if result.RefreshToken != "" {
-		token.RefreshToken = result.RefreshToken
+		creds.RefreshToken = result.RefreshToken
 	}
-	token.ExpiresIn = result.ExpiresIn
-	token.Scopes = result.Scopes
-	token.ObtainedAt = time.Now()
+	creds.ExpiresIn = result.ExpiresIn
+	creds.Scopes = result.Scopes
+	creds.CreatedAt = time.Now()
 
-	return SaveToken(token)
+	return SaveCredentials(creds)
 }
 
 // OAuthLogin performs the Authorization Code Grant flow with a localhost callback.
-// It opens the user's browser, waits for the callback, exchanges the code, and stores the token.
+// Opens the user's browser, waits for the callback, exchanges the code, and stores credentials.
 func OAuthLogin(clientID, clientSecret string) error {
 	// Generate state for CSRF protection
 	stateBytes := make([]byte, 16)
@@ -259,36 +188,37 @@ func OAuthLogin(clientID, clientSecret string) error {
 		return fmt.Errorf("token exchange failed (%d): %s", tokenResp.StatusCode, string(body))
 	}
 
-	var tokenResult struct {
+	var result struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 		TokenType    string `json:"token_type"`
 		ExpiresIn    int    `json:"expires_in"`
 		Scopes       string `json:"scopes"`
 	}
-	if err := json.Unmarshal(body, &tokenResult); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("parsing token response: %w", err)
 	}
 
-	token := &TokenData{
-		AccessToken:  tokenResult.AccessToken,
-		RefreshToken: tokenResult.RefreshToken,
-		TokenType:    tokenResult.TokenType,
-		ExpiresIn:    tokenResult.ExpiresIn,
-		Scopes:       tokenResult.Scopes,
-		ObtainedAt:   time.Now(),
+	creds := &Credentials{
+		AuthType:     AuthTypeOAuth,
+		CreatedAt:    time.Now(),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		TokenType:    result.TokenType,
+		ExpiresIn:    result.ExpiresIn,
+		Scopes:       result.Scopes,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 	}
 
-	if err := SaveToken(token); err != nil {
-		return fmt.Errorf("saving token: %w", err)
+	if err := SaveCredentials(creds); err != nil {
+		return fmt.Errorf("saving credentials: %w", err)
 	}
 
-	path, _ := TokenPath()
+	path, _ := CredentialsPath()
 	fmt.Printf("\nAuthentication successful!\n")
-	fmt.Printf("Scopes: %s\n", tokenResult.Scopes)
-	fmt.Printf("Token saved to: %s\n", path)
+	fmt.Printf("Scopes: %s\n", result.Scopes)
+	fmt.Printf("Credentials saved to: %s\n", path)
 	return nil
 }
 

@@ -21,7 +21,6 @@ const (
 // Credentials holds persisted authentication data.
 // Supports both API Token (Basic Auth) and OAuth 2.0 (Bearer Auth).
 type Credentials struct {
-	// Common fields
 	AuthType  AuthType  `json:"auth_type"`
 	CreatedAt time.Time `json:"created_at"`
 
@@ -52,39 +51,10 @@ func (c *Credentials) IsAPIToken() bool {
 // IsExpired returns true if OAuth access token is expired (with 5 min buffer).
 func (c *Credentials) IsExpired() bool {
 	if !c.IsOAuth() {
-		return false // API tokens don't expire via time
+		return false
 	}
 	expiry := c.CreatedAt.Add(time.Duration(c.ExpiresIn) * time.Second)
 	return time.Now().After(expiry.Add(-5 * time.Minute))
-}
-
-// ToTokenData converts OAuth credentials to TokenData for backward compat with refresh logic.
-func (c *Credentials) ToTokenData() *TokenData {
-	return &TokenData{
-		AccessToken:  c.AccessToken,
-		RefreshToken: c.RefreshToken,
-		TokenType:    c.TokenType,
-		ExpiresIn:    c.ExpiresIn,
-		Scopes:       c.Scopes,
-		ObtainedAt:   c.CreatedAt,
-		ClientID:     c.ClientID,
-		ClientSecret: c.ClientSecret,
-	}
-}
-
-// CredentialsFromTokenData converts a TokenData (from OAuth flow) into Credentials.
-func CredentialsFromTokenData(td *TokenData) *Credentials {
-	return &Credentials{
-		AuthType:     AuthTypeOAuth,
-		CreatedAt:    td.ObtainedAt,
-		AccessToken:  td.AccessToken,
-		RefreshToken: td.RefreshToken,
-		TokenType:    td.TokenType,
-		ExpiresIn:    td.ExpiresIn,
-		Scopes:       td.Scopes,
-		ClientID:     td.ClientID,
-		ClientSecret: td.ClientSecret,
-	}
 }
 
 // CredentialsPath returns the path to the credentials file.
@@ -120,7 +90,6 @@ func SaveCredentials(creds *Credentials) error {
 }
 
 // LoadCredentials reads persisted credentials from disk.
-// Falls back to legacy token.json if credentials.json doesn't exist.
 func LoadCredentials() (*Credentials, error) {
 	path, err := CredentialsPath()
 	if err != nil {
@@ -129,10 +98,6 @@ func LoadCredentials() (*Credentials, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// Fallback: try legacy token.json
-		if os.IsNotExist(err) {
-			return loadLegacyToken()
-		}
 		return nil, fmt.Errorf("reading credentials file: %w", err)
 	}
 
@@ -144,23 +109,6 @@ func LoadCredentials() (*Credentials, error) {
 	return &creds, nil
 }
 
-// loadLegacyToken attempts to load the old token.json format and migrate it.
-func loadLegacyToken() (*Credentials, error) {
-	td, err := LoadToken()
-	if err != nil {
-		return nil, err
-	}
-
-	// Migrate to new format
-	creds := CredentialsFromTokenData(td)
-	if saveErr := SaveCredentials(creds); saveErr != nil {
-		// Non-fatal: we can still use the loaded credentials
-		fmt.Fprintf(os.Stderr, "warning: could not migrate legacy token: %v\n", saveErr)
-	}
-
-	return creds, nil
-}
-
 // RemoveCredentials deletes the stored credentials file.
 func RemoveCredentials() error {
 	path, err := CredentialsPath()
@@ -168,24 +116,9 @@ func RemoveCredentials() error {
 		return err
 	}
 
-	if err := os.Remove(path); err != nil {
-		if os.IsNotExist(err) {
-			// Also try legacy path
-			legacyPath, legacyErr := TokenPath()
-			if legacyErr != nil {
-				return nil // nothing to remove
-			}
-			if rmErr := os.Remove(legacyPath); rmErr != nil && !os.IsNotExist(rmErr) {
-				return rmErr
-			}
-			return nil
-		}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-
-	// Also clean up legacy token.json if it exists
-	legacyPath, _ := TokenPath()
-	os.Remove(legacyPath) // ignore errors
 
 	return nil
 }
@@ -233,10 +166,8 @@ func APITokenLogin() error {
 		return fmt.Errorf("credential verification failed: %w\n\nCheck that your email and API token are correct", err)
 	}
 
-	// Parse the display name for a nice message
 	var user struct {
 		DisplayName string `json:"display_name"`
-		Username    string `json:"username"`
 		Nickname    string `json:"nickname"`
 	}
 	if jsonErr := json.Unmarshal(userData, &user); jsonErr == nil {
