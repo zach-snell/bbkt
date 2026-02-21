@@ -70,12 +70,12 @@ func RefreshOAuth(creds *Credentials) error {
 	creds.Scopes = result.Scopes
 	creds.CreatedAt = time.Now()
 
-	return SaveCredentials(creds)
+	return SaveProfile(creds)
 }
 
 // OAuthLogin performs the Authorization Code Grant flow with a localhost callback.
 // Opens the user's browser, waits for the callback, exchanges the code, and stores credentials.
-func OAuthLogin(clientID, clientSecret string) error {
+func OAuthLogin(clientID, clientSecret, profileName string) error {
 	// Generate state for CSRF protection
 	stateBytes := make([]byte, 16)
 	if _, err := rand.Read(stateBytes); err != nil {
@@ -203,6 +203,7 @@ func OAuthLogin(clientID, clientSecret string) error {
 	}
 
 	creds := &Credentials{
+		ProfileName:  profileName,
 		AuthType:     AuthTypeOAuth,
 		CreatedAt:    time.Now(),
 		AccessToken:  result.AccessToken,
@@ -214,8 +215,8 @@ func OAuthLogin(clientID, clientSecret string) error {
 		ClientSecret: clientSecret,
 	}
 
-	if err := SaveCredentials(creds); err != nil {
-		return fmt.Errorf("saving credentials: %w", err)
+	if err := SaveProfile(creds); err != nil {
+		return fmt.Errorf("saving profile: %w", err)
 	}
 
 	path, _ := CredentialsPath()

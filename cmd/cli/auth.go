@@ -8,7 +8,10 @@ import (
 	"github.com/zach-snell/bbkt/internal/bitbucket"
 )
 
-var useOAuth bool
+var (
+	useOAuth    bool
+	profileName string
+)
 
 var authCmd = &cobra.Command{
 	Use:   "auth",
@@ -19,10 +22,10 @@ By default, this sets up an API Token (Basic Auth).
 If you prefer an OAuth 2.0 flow (requires workspace admin), use the --oauth flag.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if useOAuth {
-			runOAuthLogin()
+			runOAuthLogin(profileName)
 			return
 		}
-		if err := bitbucket.APITokenLogin(); err != nil {
+		if err := bitbucket.APITokenLogin(profileName); err != nil {
 			fmt.Fprintf(os.Stderr, "auth failed: %v\n", err)
 			os.Exit(1)
 		}
@@ -51,9 +54,10 @@ func init() {
 	RootCmd.AddCommand(logoutCmd)
 
 	authCmd.Flags().BoolVar(&useOAuth, "oauth", false, "Authenticate via OAuth (opens browser)")
+	authCmd.Flags().StringVarP(&profileName, "profile", "p", "default", "Profile name to save these credentials under")
 }
 
-func runOAuthLogin() {
+func runOAuthLogin(profile string) {
 	clientID := os.Getenv("BITBUCKET_OAUTH_CLIENT_ID")
 	clientSecret := os.Getenv("BITBUCKET_OAUTH_CLIENT_SECRET")
 
@@ -69,7 +73,7 @@ func runOAuthLogin() {
 		os.Exit(1)
 	}
 
-	if err := bitbucket.OAuthLogin(clientID, clientSecret); err != nil {
+	if err := bitbucket.OAuthLogin(clientID, clientSecret, profile); err != nil {
 		fmt.Fprintf(os.Stderr, "auth failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -95,6 +99,7 @@ func runStatus() {
 	switch {
 	case creds.IsAPIToken():
 		fmt.Println("Authenticated via API Token (Basic Auth)")
+		fmt.Printf("  Profile: %s\n", creds.ProfileName)
 		fmt.Printf("  Email:   %s\n", creds.Email)
 		if len(creds.APIToken) > 8 {
 			fmt.Printf("  Token:   %s...%s\n", creds.APIToken[:4], creds.APIToken[len(creds.APIToken)-4:])

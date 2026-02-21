@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,11 +19,18 @@ const (
 	AuthTypeOAuth    AuthType = "oauth"
 )
 
+// ProfileStore holds multiple authentication profiles
+type ProfileStore struct {
+	ActiveProfile string                  `json:"active_profile"`
+	Profiles      map[string]*Credentials `json:"profiles"`
+}
+
 // Credentials holds persisted authentication data.
 // Supports both API Token (Basic Auth) and OAuth 2.0 (Bearer Auth).
 type Credentials struct {
-	AuthType  AuthType  `json:"auth_type"`
-	CreatedAt time.Time `json:"created_at"`
+	ProfileName string    `json:"-"`
+	AuthType    AuthType  `json:"auth_type"`
+	CreatedAt   time.Time `json:"created_at"`
 
 	// API Token fields (auth_type=api_token)
 	Email    string `json:"email,omitempty"`
@@ -66,8 +74,8 @@ func CredentialsPath() (string, error) {
 	return filepath.Join(home, ".config", "bbkt", "credentials.json"), nil
 }
 
-// SaveCredentials persists credentials to disk with secure permissions.
-func SaveCredentials(creds *Credentials) error {
+// SaveProfileStore persists the entire ProfileStore to disk.
+func SaveProfileStore(store *ProfileStore) error {
 	path, err := CredentialsPath()
 	if err != nil {
 		return err
@@ -77,9 +85,9 @@ func SaveCredentials(creds *Credentials) error {
 		return fmt.Errorf("creating config dir: %w", err)
 	}
 
-	data, err := json.MarshalIndent(creds, "", "  ")
+	data, err := json.MarshalIndent(store, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling credentials: %w", err)
+		return fmt.Errorf("marshaling profile store: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -89,8 +97,36 @@ func SaveCredentials(creds *Credentials) error {
 	return nil
 }
 
-// LoadCredentials reads persisted credentials from disk.
-func LoadCredentials() (*Credentials, error) {
+// SaveProfile saves a single credential under its ProfileName.
+// If it is the first profile being saved, it is automatically marked as active.
+func SaveProfile(creds *Credentials) error {
+	if creds.ProfileName == "" {
+		creds.ProfileName = "default"
+	}
+
+	store, err := LoadProfileStore()
+	if err != nil {
+		// If the file doesn't exist, we start a fresh store
+		store = &ProfileStore{
+			Profiles: make(map[string]*Credentials),
+		}
+	}
+
+	if store.Profiles == nil {
+		store.Profiles = make(map[string]*Credentials)
+	}
+
+	store.Profiles[creds.ProfileName] = creds
+	if store.ActiveProfile == "" {
+		store.ActiveProfile = creds.ProfileName
+	}
+
+	return SaveProfileStore(store)
+}
+
+// LoadProfileStore reads the persisted profile store from disk.
+// It automatically migrates older single-credential files to the new ProfileStore format.
+func LoadProfileStore() (*ProfileStore, error) {
 	path, err := CredentialsPath()
 	if err != nil {
 		return nil, err
@@ -101,12 +137,100 @@ func LoadCredentials() (*Credentials, error) {
 		return nil, fmt.Errorf("reading credentials file: %w", err)
 	}
 
-	var creds Credentials
-	if err := json.Unmarshal(data, &creds); err != nil {
+	// Check if this is the old scalar Credentials format or the new ProfileStore format
+	var check map[string]interface{}
+	if err := json.Unmarshal(data, &check); err != nil {
 		return nil, fmt.Errorf("parsing credentials file: %w", err)
 	}
 
-	return &creds, nil
+	if _, ok := check["profiles"]; !ok {
+		// Old format migration
+		var oldCreds Credentials
+		if err := json.Unmarshal(data, &oldCreds); err != nil {
+			return nil, fmt.Errorf("parsing legacy credentials: %w", err)
+		}
+		oldCreds.ProfileName = "default"
+
+		store := &ProfileStore{
+			ActiveProfile: "default",
+			Profiles: map[string]*Credentials{
+				"default": &oldCreds,
+			},
+		}
+
+		// Save the migrated format silently back to disk
+		_ = SaveProfileStore(store)
+		return store, nil
+	}
+
+	// New format
+	var store ProfileStore
+	if err := json.Unmarshal(data, &store); err != nil {
+		return nil, fmt.Errorf("parsing profile store: %w", err)
+	}
+
+	if store.Profiles == nil {
+		store.Profiles = make(map[string]*Credentials)
+	}
+
+	for name, creds := range store.Profiles {
+		creds.ProfileName = name
+	}
+
+	return &store, nil
+}
+
+// GetGitUserEmail silently tries to read the local git config.
+func GetGitUserEmail() string {
+	cmd := exec.Command("git", "config", "user.email")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// LoadCredentials gets the active credential profile based on context.
+// Priority:
+// 1. BBKT_PROFILE environment variable (or --profile CLI flag equivalent)
+// 2. Exact match of local `git config user.email` to a profile's email
+// 3. The configured 'ActiveProfile' in credentials.json
+func LoadCredentials() (*Credentials, error) {
+	store, err := LoadProfileStore()
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Explicit Override
+	if override := os.Getenv("BBKT_PROFILE"); override != "" {
+		if creds, ok := store.Profiles[override]; ok {
+			return creds, nil
+		}
+		return nil, fmt.Errorf("override profile '%s' not found in store", override)
+	}
+
+	// 2. Magic Context Inference
+	if gitEmail := GetGitUserEmail(); gitEmail != "" {
+		for _, creds := range store.Profiles {
+			if strings.EqualFold(creds.Email, gitEmail) {
+				return creds, nil
+			}
+		}
+	}
+
+	// 3. Fallback to Active Profile
+	creds, ok := store.Profiles[store.ActiveProfile]
+	if !ok {
+		if len(store.Profiles) > 0 {
+			// Panic recovery: just use whatever we have
+			for _, first := range store.Profiles {
+				return first, nil
+			}
+		}
+		return nil, fmt.Errorf("active profile '%s' not found in store, and no other profiles found", store.ActiveProfile)
+	}
+
+	return creds, nil
 }
 
 // RemoveCredentials deletes the stored credentials file.
@@ -124,7 +248,7 @@ func RemoveCredentials() error {
 }
 
 // APITokenLogin prompts the user for email + API Token and stores them.
-func APITokenLogin() error {
+func APITokenLogin(profileName string) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println()
@@ -193,15 +317,16 @@ func APITokenLogin() error {
 	}
 
 	creds := &Credentials{
-		AuthType:  AuthTypeAPIToken,
-		CreatedAt: time.Now(),
-		Email:     email,
-		APIToken:  token,
-		Scopes:    scopesStr,
+		ProfileName: profileName,
+		AuthType:    AuthTypeAPIToken,
+		CreatedAt:   time.Now(),
+		Email:       email,
+		APIToken:    token,
+		Scopes:      scopesStr,
 	}
 
-	if err := SaveCredentials(creds); err != nil {
-		return fmt.Errorf("saving credentials: %w", err)
+	if err := SaveProfile(creds); err != nil {
+		return fmt.Errorf("saving profile: %w", err)
 	}
 
 	path, _ := CredentialsPath()

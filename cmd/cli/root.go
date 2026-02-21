@@ -21,6 +21,11 @@ pipelines, and more directly from your terminal, or expose these
 capabilities to your AI agents via the MCP protocol.
 
 Try running 'bbkt auth' to get started!`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
+			os.Setenv("BBKT_PROFILE", profile)
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
