@@ -25,7 +25,7 @@ var reposListCmd = &cobra.Command{
 			ws, _, _, err := ParseArgs(args, -1) // -1 means we just want workspace
 			if err != nil {
 				// Fallback to just GetLocalRepoInfo
-				w, _, err := GetLocalRepoInfo()
+				w, _, err := bitbucket.GetLocalRepoInfo()
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Error: must specify a workspace or run inside a git repo\n")
 					os.Exit(1)

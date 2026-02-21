@@ -57,7 +57,7 @@ var sourceTreeCmd = &cobra.Command{
 		var workspace, repoSlug, path string
 
 		if len(args) == 0 || len(args) == 1 {
-			ws, rs, err := GetLocalRepoInfo()
+			ws, rs, err := bitbucket.GetLocalRepoInfo()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)

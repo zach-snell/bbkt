@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -44,6 +43,9 @@ type Credentials struct {
 	Scopes       string `json:"scopes,omitempty"`
 	ClientID     string `json:"client_id,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"`
+
+	// Derived cache data
+	AccessibleWorkspaces []string `json:"accessible_workspaces,omitempty"`
 }
 
 // IsOAuth returns true if these credentials use OAuth.
@@ -180,16 +182,6 @@ func LoadProfileStore() (*ProfileStore, error) {
 	return &store, nil
 }
 
-// GetGitUserEmail silently tries to read the local git config.
-func GetGitUserEmail() string {
-	cmd := exec.Command("git", "config", "user.email")
-	output, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(output))
-}
-
 // LoadCredentials gets the active credential profile based on context.
 // Priority:
 // 1. BBKT_PROFILE environment variable (or --profile CLI flag equivalent)
@@ -210,10 +202,12 @@ func LoadCredentials() (*Credentials, error) {
 	}
 
 	// 2. Magic Context Inference
-	if gitEmail := GetGitUserEmail(); gitEmail != "" {
+	if ws, _, err := GetLocalRepoInfo(); err == nil && ws != "" {
 		for _, creds := range store.Profiles {
-			if strings.EqualFold(creds.Email, gitEmail) {
-				return creds, nil
+			for _, accessible := range creds.AccessibleWorkspaces {
+				if strings.EqualFold(accessible, ws) {
+					return creds, nil
+				}
 			}
 		}
 	}
@@ -317,12 +311,13 @@ func APITokenLogin(profileName string) error {
 	}
 
 	creds := &Credentials{
-		ProfileName: profileName,
-		AuthType:    AuthTypeAPIToken,
-		CreatedAt:   time.Now(),
-		Email:       email,
-		APIToken:    token,
-		Scopes:      scopesStr,
+		ProfileName:          profileName,
+		AuthType:             AuthTypeAPIToken,
+		CreatedAt:            time.Now(),
+		Email:                email,
+		APIToken:             token,
+		Scopes:               scopesStr,
+		AccessibleWorkspaces: FetchAccessibleWorkspaces(client),
 	}
 
 	if err := SaveProfile(creds); err != nil {
@@ -333,4 +328,16 @@ func APITokenLogin(profileName string) error {
 	fmt.Printf("\nCredentials saved to: %s\n", path)
 	fmt.Println("You can now use the Bitbucket MCP server.")
 	return nil
+}
+
+// FetchAccessibleWorkspaces retrieves all workspace slugs the client can access.
+func FetchAccessibleWorkspaces(client *Client) []string {
+	var slugs []string
+	res, err := client.ListWorkspaces(ListWorkspacesArgs{Pagelen: 100})
+	if err == nil && res != nil {
+		for _, w := range res.Values {
+			slugs = append(slugs, w.Slug)
+		}
+	}
+	return slugs
 }

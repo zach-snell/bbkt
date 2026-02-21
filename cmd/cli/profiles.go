@@ -20,7 +20,7 @@ var profileCmd = &cobra.Command{
 		}
 
 		// Also check what Local Git says so we can indicate auto-detection
-		localGitEmail := bitbucket.GetGitUserEmail()
+		localWorkspace, _, werr := bitbucket.GetLocalRepoInfo()
 
 		fmt.Println("Available Profiles:")
 		for name, cred := range store.Profiles {
@@ -28,8 +28,13 @@ var profileCmd = &cobra.Command{
 			if name == store.ActiveProfile {
 				active = " (default)"
 			}
-			if localGitEmail != "" && localGitEmail == cred.Email {
-				active += " [Git auto-selected]"
+			if werr == nil && localWorkspace != "" {
+				for _, ws := range cred.AccessibleWorkspaces {
+					if ws == localWorkspace {
+						active += " [Workspace auto-selected]"
+						break
+					}
+				}
 			}
 			fmt.Printf("  - %s: %s%s\n", name, cred.Email, active)
 		}
@@ -63,7 +68,44 @@ var profileUseCmd = &cobra.Command{
 	},
 }
 
+var profileRefreshCmd = &cobra.Command{
+	Use:   "refresh",
+	Short: "Refresh workspace cache for all profiles",
+	Run: func(cmd *cobra.Command, args []string) {
+		store, err := bitbucket.LoadProfileStore()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error loading profiles.")
+			return
+		}
+
+		fmt.Println("Refreshing workspaces...")
+		for name, cred := range store.Profiles {
+			var client *bitbucket.Client
+			if cred.IsAPIToken() {
+				client = bitbucket.NewClient(cred.Email, cred.APIToken, "")
+			} else if cred.IsOAuth() {
+				if cred.IsExpired() {
+					_ = bitbucket.RefreshOAuth(cred)
+				}
+				client = bitbucket.NewClient("", "", cred.AccessToken)
+			}
+			if client != nil {
+				slugs := bitbucket.FetchAccessibleWorkspaces(client)
+				cred.AccessibleWorkspaces = slugs
+				fmt.Printf("  - %s: Found %d workspaces\n", name, len(slugs))
+			}
+		}
+
+		if err := bitbucket.SaveProfileStore(store); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving profiles: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Done.")
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileUseCmd)
+	profileCmd.AddCommand(profileRefreshCmd)
 }

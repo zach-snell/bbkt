@@ -203,16 +203,17 @@ func OAuthLogin(clientID, clientSecret, profileName string) error {
 	}
 
 	creds := &Credentials{
-		ProfileName:  profileName,
-		AuthType:     AuthTypeOAuth,
-		CreatedAt:    time.Now(),
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		TokenType:    result.TokenType,
-		ExpiresIn:    result.ExpiresIn,
-		Scopes:       result.Scopes,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		ProfileName:          profileName,
+		AuthType:             AuthTypeOAuth,
+		CreatedAt:            time.Now(),
+		AccessToken:          result.AccessToken,
+		RefreshToken:         result.RefreshToken,
+		TokenType:            result.TokenType,
+		ExpiresIn:            result.ExpiresIn,
+		Scopes:               result.Scopes,
+		ClientID:             clientID,
+		ClientSecret:         clientSecret,
+		AccessibleWorkspaces: FetchAccessibleWorkspaces(NewClient("", "", result.AccessToken)),
 	}
 
 	if err := SaveProfile(creds); err != nil {
