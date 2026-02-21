@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/zach-snell/bbkt/internal/bitbucket"
+	"github.com/zach-snell/bbkt/internal/version"
 )
 
 // New creates and configures the Bitbucket MCP server with all tools registered.
@@ -26,7 +27,7 @@ func newServer(client *bitbucket.Client) *mcp.Server {
 	s := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "bbkt",
-			Version: "1.0.0",
+			Version: version.Version,
 		},
 		nil,
 	)

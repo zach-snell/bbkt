@@ -3,8 +3,12 @@
 set -e
 
 echo "Building bbkt..."
+# Determine version from git or fallback to dev
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+echo "Version: $VERSION"
+
 # Build the binary
-go build -ldflags="-s -w" -o bbkt ./cmd/bbkt
+go build -ldflags="-s -w -X 'github.com/zach-snell/bbkt/internal/version.Version=$VERSION'" -o bbkt ./cmd/bbkt
 
 # Determine destination directory
 DEST_DIR="$HOME/.local/bin"

@@ -47,7 +47,7 @@ jobs:
             fi
             
             echo "Building $output..."
-            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o "dist/${output}" ./cmd/bbkt
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w -X 'github.com/zach-snell/bbkt/internal/version.Version=${GITHUB_REF_NAME}'" -o "dist/${output}" ./cmd/bbkt
           done
 
       - name: Create checksums
