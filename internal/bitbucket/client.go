@@ -199,13 +199,14 @@ func (c *Client) Scopes() ([]string, error) {
 		return c.apiTokenScopes, nil
 	}
 
-	_, scopesStr, err := c.GetWithScopes("/workspace")
-	if err != nil {
+	_, scopesStr, _ := c.GetWithScopes("/workspace")
+	if scopesStr == "" {
 		// Try /user as fallback if workspace fails
-		_, scopesStr, err = c.GetWithScopes("/user")
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch scopes: %w", err)
-		}
+		_, scopesStr, _ = c.GetWithScopes("/user")
+	}
+
+	if scopesStr == "" {
+		return nil, fmt.Errorf("failed to reliably fetch token scopes: API did not return X-OAuth-Scopes header")
 	}
 
 	c.apiTokenScopes = parseScopesString(scopesStr)
