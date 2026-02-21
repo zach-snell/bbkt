@@ -47,16 +47,22 @@ func NewClient(username, password, token string) *Client {
 	}
 }
 
-// NewClientFromOAuth creates a client from stored OAuth credentials with auto-refresh.
-func NewClientFromOAuth(creds *Credentials) *Client {
-	return &Client{
+// NewClientFromCredentials creates a client from stored credentials, preserving cached scopes.
+func NewClientFromCredentials(creds *Credentials) *Client {
+	c := &Client{
 		http: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		baseURL:    baseURL,
-		token:      creds.AccessToken,
 		oauthCreds: creds,
 	}
+	if creds.IsOAuth() {
+		c.token = creds.AccessToken
+	} else if creds.IsAPIToken() {
+		c.username = creds.Email
+		c.password = creds.APIToken
+	}
+	return c
 }
 
 // ensureValidToken checks if the OAuth token is expired and refreshes if needed.

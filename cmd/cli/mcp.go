@@ -53,10 +53,8 @@ func runServer() {
 		}
 
 		switch {
-		case creds.IsAPIToken():
-			s = mcpserver.New(creds.Email, creds.APIToken, "")
-		case creds.IsOAuth():
-			s = mcpserver.NewFromOAuth(creds)
+		case creds.IsAPIToken() || creds.IsOAuth():
+			s = mcpserver.NewFromCredentials(creds)
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown auth type in stored credentials: %s\n", creds.AuthType)
 			os.Exit(1)
