@@ -6,3 +6,4 @@ dist/
 .env
 .env.local
 vendor/
+bbkt
