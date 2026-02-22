@@ -201,7 +201,7 @@ func (c *Client) ApprovePullRequest(args PullRequestActionArgs) error {
 	}
 
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/approve",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), nil)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), map[string]interface{}{})
 	return err
 }
 
@@ -222,7 +222,7 @@ func (c *Client) DeclinePullRequest(args PullRequestActionArgs) error {
 	}
 
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/decline",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), nil)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID), map[string]interface{}{})
 	return err
 }
 
