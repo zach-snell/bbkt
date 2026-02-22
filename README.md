@@ -128,3 +128,7 @@ go test ./...
 # Run the linter
 golangci-lint run ./...
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
