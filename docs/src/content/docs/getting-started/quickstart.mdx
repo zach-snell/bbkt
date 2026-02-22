@@ -5,11 +5,11 @@ description: Get up and running with bbkt in minutes.
 
 import { Steps, Code, Tabs, TabItem } from '@astrojs/starlight/components';
 
-This guide will help you set up bbkt and start using it with your AI assistant.
+This guide will help you set up `bbkt` and start using it with your AI assistant to manage your Bitbucket workspace.
 
 ## Prerequisites
 
-- An Obsidian vault (or any folder with markdown files)
+- An Atlassian API Token (or App Password)
 - An MCP-compatible AI client (Claude Desktop, Cursor, etc.)
 
 ## Setup
@@ -19,14 +19,11 @@ This guide will help you set up bbkt and start using it with your AI assistant.
 1. **Install bbkt**
 
    <Tabs>
-     <TabItem label="macOS/Linux">
+     <TabItem label="Installation Script">
        ```bash
-       curl -sSL https://raw.githubusercontent.com/zach-snell/bbkt/main/install.sh | bash
-       ```
-     </TabItem>
-     <TabItem label="Homebrew">
-       ```bash
-       brew install zach-snell/tap/bbkt
+       git clone https://github.com/zach-snell/bbkt.git
+       cd bbkt
+       ./install.sh
        ```
      </TabItem>
      <TabItem label="Go">
@@ -36,95 +33,76 @@ This guide will help you set up bbkt and start using it with your AI assistant.
      </TabItem>
    </Tabs>
 
-2. **Find your vault path**
+2. **Configure your MCP client**
 
-   Your Obsidian vault is just a folder. Find the path:
-   - **macOS**: `/Users/yourname/Documents/MyVault`
-   - **Linux**: `/home/yourname/Documents/MyVault`
-   - **Windows**: `C:\Users\yourname\Documents\MyVault`
-
-3. **Configure your MCP client**
-
-   Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+   Add `bbkt` to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
    ```json
    {
      "mcpServers": {
-       "obsidian": {
+       "bitbucket": {
          "command": "bbkt",
-         "args": ["/path/to/your/vault"]
+         "args": ["mcp"],
+         "env": {
+           "BITBUCKET_USERNAME": "your-username",
+           "BITBUCKET_API_TOKEN": "your-api-token"
+         }
        }
      }
    }
    ```
 
-4. **Restart your AI client**
+3. **Restart your AI client**
 
    Close and reopen Claude Desktop (or your MCP client) to load the new server.
 
-5. **Start chatting!**
+4. **Start chatting!**
 
-   You can now ask your AI assistant to interact with your vault.
+   You can now ask your AI assistant to interact with your Bitbucket repositories.
 
 </Steps>
-
-:::caution[Paths are relative to the vault root]
-All paths in tool calls are **relative to the vault**, not absolute filesystem paths. For example, if your vault is at `/Users/zach/MyVault`, use `projects/todo.md` — not `/Users/zach/MyVault/projects/todo.md`. Using the full path will create nested directories inside your vault.
-:::
 
 ## First Commands to Try
 
 Once configured, try asking your AI assistant:
 
-### Read your vault
+### View your repositories
 
-> "Show me my 10 most recently modified notes"
+> "Show me my repositories in the 'acme-corp' workspace"
 
-> "What notes do I have in my projects folder?"
+> "List all open pull requests in the 'frontend-app' repo"
 
-### Search for content
+### Manage code and reviews
 
-> "Search for notes mentioning 'machine learning'"
+> "Approve the latest pull request on 'backend-api'"
 
-> "Find all notes tagged with #book-notes"
+> "Comment on line 42 of PR #12 saying 'This logic looks fragile'"
 
-### Create content
+### Trigger pipelines
 
-> "Create a new daily note for today"
+> "Run the deployment pipeline for the `main` branch"
 
-> "Add a task to my inbox: Review quarterly goals"
-
-### Analyze your vault
-
-> "Show me statistics about my vault"
-
-> "Find orphan notes that aren't linked anywhere"
+> "Check the status of the failing pipeline run"
 
 ## Example Conversation
 
-Here's a typical interaction:
+Here's a typical interaction using our new, highly-efficient multiplexed tools:
 
-**You**: "Create a new project note for 'Website Redesign' with status draft and priority high"
+**You**: "Create a new branch called 'feature/new-login' in the 'auth-service' repo"
 
-**Assistant**: *Uses `write-note` and `set-frontmatter` tools*
+**Assistant**: *Uses the `manage_refs` tool with action="create-branch"*
 
-> Created `projects/Website Redesign.md` with:
-> - Status: draft
-> - Priority: high
+> Branch `feature/new-login` has been created from `main`.
 
-**You**: "Add a checklist of tasks for this project"
+**You**: "Can you open a PR for this new branch into main with the title 'Add OAuth Support'?"
 
-**Assistant**: *Uses `append-note` tool*
+**Assistant**: *Uses the `manage_pull_requests` tool with action="create"*
 
-> Added tasks to the note:
-> - [ ] Define requirements
-> - [ ] Create wireframes
-> - [ ] Design mockups
-> - [ ] Implement frontend
-> - [ ] Test and deploy
+> Pull request #45 has been created: **Add OAuth Support**.
+> - Source: `feature/new-login`
+> - Destination: `main`
 
 ## Next Steps
 
-- Explore the [Tools Reference](/bbkt/tools/overview) to see all 70 available tools
-- Learn about [Task Management](/bbkt/guides/tasks) workflows
-- Set up [Templates](/bbkt/guides/templates) for consistent note creation
+- Explore the Configuration guide to see how to authenticate using API Tokens or OAuth.
+- Learn about the comprehensive 9 multiplexed MCP tools available.

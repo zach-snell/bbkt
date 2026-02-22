@@ -38,32 +38,21 @@ func newServer(client *bitbucket.Client) *mcp.Server {
 
 func getToolRequiredScope(toolName string) []string {
 	switch toolName {
-	case "list_workspaces", "get_workspace":
-		return nil // Basic read access implies these are readable
-	case "list_repositories", "get_repository", "list_branches", "list_tags", "list_commits", "get_commit", "get_diff", "get_diffstat", "get_file_content", "list_directory", "get_file_history", "search_code":
+	case "manage_workspaces":
+		return nil
+	case "manage_repositories", "manage_refs", "manage_commits", "manage_source":
 		return []string{"repository"}
-	case "create_repository", "delete_repository", "create_branch", "delete_branch", "create_tag", "write_file", "delete_file":
-		if toolName == "delete_repository" {
-			return []string{"repository:delete"}
-		}
-		return []string{"repository:write", "repository:admin"}
-	case "list_pull_requests", "get_pull_request", "get_pr_diff", "get_pr_diffstat", "list_pr_commits", "list_pr_comments":
+	case "manage_pull_requests", "manage_pr_comments":
 		return []string{"pullrequest"}
-	case "create_pull_request", "update_pull_request", "merge_pull_request", "approve_pull_request", "unapprove_pull_request", "decline_pull_request", "create_pr_comment", "update_pr_comment", "delete_pr_comment", "resolve_pr_comment", "unresolve_pr_comment":
-		return []string{"pullrequest:write"}
-	case "list_pipelines", "get_pipeline", "list_pipeline_steps", "get_pipeline_step_log":
+	case "manage_pipelines":
 		return []string{"pipeline"}
-	case "trigger_pipeline", "stop_pipeline":
-		return []string{"pipeline:write"}
-	case "list_issues", "get_issue":
+	case "manage_issues":
 		return []string{"issue"}
-	case "create_issue", "update_issue":
-		return []string{"issue:write"}
 	}
 	return nil
 }
 
-func hasRequiredScope(tokenScopes []string, required []string) bool {
+func hasRequiredScope(tokenScopes, required []string) bool {
 	if len(required) == 0 {
 		return true
 	}
@@ -156,251 +145,55 @@ func registerTools(s *mcp.Server, c *bitbucket.Client) {
 
 	// ─── Workspaces ──────────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_workspaces",
-		Description: "List Bitbucket workspaces accessible to the authenticated user",
-	}, ListWorkspacesHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_workspace",
-		Description: "Get details for a Bitbucket workspace",
-	}, GetWorkspaceHandler(c))
+		Name:        "manage_workspaces",
+		Description: "Unified tool for getting and listing Bitbucket workspaces",
+	}, ManageWorkspacesHandler(c))
 
 	// ─── Repositories ────────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_repositories",
-		Description: "List repositories in a Bitbucket workspace",
-	}, ListRepositoriesHandler(c))
+		Name:        "manage_repositories",
+		Description: "Unified tool for listing, getting, creating, and deleting repositories",
+	}, ManageRepositoriesHandler(c))
 
+	// ─── Branches & Tags ─────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_repository",
-		Description: "Get details for a specific repository",
-	}, GetRepositoryHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "create_repository",
-		Description: "Create a new repository in a workspace",
-	}, CreateRepositoryHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "delete_repository",
-		Description: "Delete a repository (DESTRUCTIVE - cannot be undone)",
-	}, DeleteRepositoryHandler(c))
-
-	// ─── Branches ────────────────────────────────────────────────────
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_branches",
-		Description: "List branches in a repository",
-	}, ListBranchesHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "create_branch",
-		Description: "Create a new branch from a commit hash",
-	}, CreateBranchHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "delete_branch",
-		Description: "Delete a branch",
-	}, DeleteBranchHandler(c))
-
-	// ─── Tags ────────────────────────────────────────────────────────
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_tags",
-		Description: "List tags in a repository",
-	}, ListTagsHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "create_tag",
-		Description: "Create a new tag at a specific commit",
-	}, CreateTagHandler(c))
+		Name:        "manage_refs",
+		Description: "Unified tool for listing, creating, and deleting branches and tags",
+	}, ManageRefsHandler(c))
 
 	// ─── Commits ─────────────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_commits",
-		Description: "List commits in a repository, optionally filtered by branch/revision",
-	}, ListCommitsHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_commit",
-		Description: "Get details for a single commit",
-	}, GetCommitHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_diff",
-		Description: "Get diff for a commit or between two revisions (e.g. 'hash1..hash2')",
-	}, GetDiffHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_diffstat",
-		Description: "Get diff statistics (files changed, lines added/removed)",
-	}, GetDiffStatHandler(c))
+		Name:        "manage_commits",
+		Description: "Unified tool for listing and getting commits, diffs, and diffstats",
+	}, ManageCommitsHandler(c))
 
 	// ─── Pull Requests ───────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_pull_requests",
-		Description: "List pull requests for a repository",
-	}, ListPullRequestsHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_pull_request",
-		Description: "Get details for a specific pull request",
-	}, GetPullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "create_pull_request",
-		Description: "Create a new pull request",
-	}, CreatePullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "update_pull_request",
-		Description: "Update a pull request's title or description",
-	}, UpdatePullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "merge_pull_request",
-		Description: "Merge a pull request",
-	}, MergePullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "approve_pull_request",
-		Description: "Approve a pull request",
-	}, ApprovePullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "unapprove_pull_request",
-		Description: "Remove approval from a pull request",
-	}, UnapprovePullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "decline_pull_request",
-		Description: "Decline a pull request",
-	}, DeclinePullRequestHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_pr_diff",
-		Description: "Get the diff for a pull request",
-	}, GetPRDiffHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_pr_diffstat",
-		Description: "Get diff statistics for a pull request (files changed, lines added/removed)",
-	}, GetPRDiffStatHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_pr_commits",
-		Description: "List commits in a pull request",
-	}, ListPRCommitsHandler(c))
+		Name:        "manage_pull_requests",
+		Description: "Unified tool covering all pull request operations (list, get, create, update, merge, approve, unapprove, decline, diff, diffstat, commits)",
+	}, ManagePullRequestsHandler(c))
 
 	// ─── PR Comments ─────────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_pr_comments",
-		Description: "List comments on a pull request",
-	}, ListPRCommentsHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "create_pr_comment",
-		Description: "Add a comment to a pull request. Supports inline comments on specific files/lines and replies to existing comments.",
-	}, CreatePRCommentHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "update_pr_comment",
-		Description: "Update an existing comment on a pull request",
-	}, UpdatePRCommentHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "delete_pr_comment",
-		Description: "Delete a comment from a pull request",
-	}, DeletePRCommentHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "resolve_pr_comment",
-		Description: "Resolve a comment thread on a pull request",
-	}, ResolvePRCommentHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "unresolve_pr_comment",
-		Description: "Reopen a resolved comment thread",
-	}, UnresolvePRCommentHandler(c))
+		Name:        "manage_pr_comments",
+		Description: "Unified tool for managing pull request comments (list, create, update, delete, resolve, unresolve)",
+	}, ManagePRCommentsHandler(c))
 
 	// ─── Source / File Browsing ──────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_file_content",
-		Description: "Read a file's content from the repository at a given revision",
-	}, GetFileContentHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_directory",
-		Description: "List files and directories at a path in the repository",
-	}, ListDirectoryHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_file_history",
-		Description: "Get the commit history for a specific file",
-	}, GetFileHistoryHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "search_code",
-		Description: "Search for code in a repository",
-	}, SearchCodeHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "write_file",
-		Description: "Write or update a file in the repository",
-	}, WriteFileHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "delete_file",
-		Description: "Delete a file from the repository",
-	}, DeleteFileHandler(c))
+		Name:        "manage_source",
+		Description: "Unified tool for source code operations (read, list_directory, get_history, search, write, delete)",
+	}, ManageSourceHandler(c))
 
 	// ─── Pipelines ───────────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_pipelines",
-		Description: "List pipeline runs for a repository",
-	}, ListPipelinesHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_pipeline",
-		Description: "Get details for a specific pipeline run",
-	}, GetPipelineHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "trigger_pipeline",
-		Description: "Trigger a new pipeline run on a branch",
-	}, TriggerPipelineHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "stop_pipeline",
-		Description: "Stop a running pipeline",
-	}, StopPipelineHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_pipeline_steps",
-		Description: "List steps in a pipeline run",
-	}, ListPipelineStepsHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_pipeline_step_log",
-		Description: "Get the log output for a pipeline step",
-	}, GetPipelineStepLogHandler(c))
+		Name:        "manage_pipelines",
+		Description: "Unified tool for managing Bitbucket Pipelines (list, get, trigger, stop, list-steps, get-step-log)",
+	}, ManagePipelinesHandler(c))
 
 	// ─── Issues ──────────────────────────────────────────────────────
 	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "list_issues",
-		Description: "List issues in a repository",
-	}, ListIssuesHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "get_issue",
-		Description: "Get details for a specific issue",
-	}, GetIssueHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "create_issue",
-		Description: "Create a new issue",
-	}, CreateIssueHandler(c))
-
-	addTool(s, disabled, tokenScopes, mcp.Tool{
-		Name:        "update_issue",
-		Description: "Update an existing issue",
-	}, UpdateIssueHandler(c))
+		Name:        "manage_issues",
+		Description: "Unified tool for managing repository issues (list, get, create, update)",
+	}, ManageIssuesHandler(c))
 }

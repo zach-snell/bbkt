@@ -5,11 +5,11 @@ description: Contributing to and developing bbkt.
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-This guide covers setting up a development environment and contributing to bbkt.
+This guide covers setting up a development environment and contributing to `bbkt`.
 
 ## Prerequisites
 
-- **Go 1.21+**: Required for building
+- **Go 1.25+**: Required for building
 - **mise** (recommended): For tool management
 - **Git**: For version control
 
@@ -33,10 +33,9 @@ cd bbkt
   </TabItem>
   <TabItem label="Manual">
     ```bash
-    # Install Go 1.21+
+    # Install Go 1.25+
     # Then install dev tools:
     go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    go install golang.org/x/vuln/cmd/govulncheck@latest
     ```
   </TabItem>
 </Tabs>
@@ -52,7 +51,7 @@ go build -o bin/bbkt ./cmd/bbkt
 ### Run Tests
 
 ```bash
-mise run test
+mise run check
 # or
 go test -race -cover ./...
 ```
@@ -62,23 +61,17 @@ go test -race -cover ./...
 ```
 bbkt/
 ├── cmd/
-│   └── server/
-│       └── main.go          # Entry point
+│   ├── bbkt/                # Main CLI entrypoint
+│   └── cli/                 # CLI subcommands (auth, profile, repos, etc.)
 ├── internal/
-│   ├── server/
-│   │   └── server.go        # MCP server setup, tool registration
-│   └── vault/
-│       ├── vault.go         # Vault struct, core helpers
-│       ├── notes.go         # Note CRUD operations
-│       ├── search.go        # Search tools
-│       ├── frontmatter.go   # Frontmatter operations
-│       ├── tasks.go         # Task management
-│       ├── periodic.go      # Periodic notes
-│       ├── templates.go     # Template operations
-│       ├── graph.go         # Link analysis
-│       ├── canvas.go        # Canvas operations
-│       ├── bulk.go          # Bulk operations
-│       └── *_test.go        # Tests
+│   ├── bitbucket/           # Core API Client (HTTP requests, structs)
+│   ├── mcp/                 # MCP Server and Multiplexed Handlers
+│   │   ├── server.go        # MCP server setup, tool registration
+│   │   ├── workspaces.go    # manage_workspaces handler logic 
+│   │   ├── pipelines.go     # manage_pipelines handler logic
+│   │   └── ...              # Other unified tools
+│   ├── cli/                 # Interactive CLI wizards and formatting
+│   └── keybox/              # Multi-profile keystore
 ├── docs/                    # Documentation site
 ├── .mise.toml               # mise configuration
 └── README.md
@@ -91,66 +84,65 @@ Available mise tasks:
 | Task | Description |
 |------|-------------|
 | `mise run build` | Build the binary |
-| `mise run dev` | Run with test vault |
-| `mise run test` | Run tests with race detection |
-| `mise run lint` | Run golangci-lint |
-| `mise run vuln` | Check for vulnerabilities |
-| `mise run check` | Run lint + test + vuln |
-| `mise run fuzz` | Run all fuzz tests |
-| `mise run docs:dev` | Run docs dev server |
-| `mise run docs:build` | Build docs for production |
+| `mise run install` | Install binary to ~/.local/bin |
+| `mise run check` | Run tests and linter |
+| `mise run clean` | Remove build artifacts |
 
-## Adding a New Tool
+## Adding or Modifying a Tool
 
-### 1. Implement the Handler
+We use a "multiplexed" MCP pattern to avoid LLM tool limits. Instead of making an individual tool like `create_pull_request`, we group all PR operations into a single `manage_pull_requests` tool driven by an `action` enum.
 
-Create or update a file in `internal/bitbucket/`:
+### 1. Implement the API logic
+Add the functionality to `internal/bitbucket/` communicating with the Bitbucket API:
 
 ```go
-// internal/bitbucket/myfeature.go
+// internal/bitbucket/feature.go
+type DoFeatureArgs struct { /* ... */ }
 
-package vault
-
-import (
-    "context"
-    "github.com/mark3labs/mcp-go/mcp"
-)
-
-func (v *Vault) MyNewToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-    // Get parameters
-    param := request.Params.Arguments["param"].(string)
-    
-    // Do the work
-    result, err := v.doSomething(param)
-    if err != nil {
-        return mcp.NewToolResultError(err.Error()), nil
-    }
-    
-    // Return result
-    return mcp.NewToolResultText(result), nil
+func (c *Client) DoFeature(args DoFeatureArgs) (Result, error) {
+    // Make API HTTP Request
 }
 ```
 
-### 2. Register the Tool
-
-Add to `internal/server/server.go`:
+### 2. Update the MCP Handler
+Locate the relevant domain in `internal/mcp/` (e.g. `internal/mcp/repos.go`) and update the arguments and handler logic:
 
 ```go
-// my-new-tool
-s.AddTool(
-    mcp.NewTool("my-new-tool",
-        mcp.WithDescription("Description of what this tool does"),
-        mcp.WithString("param",
-            mcp.Required(),
-            mcp.Description("Parameter description"),
-        ),
-        mcp.WithNumber("optional_param",
-            mcp.Description("Optional parameter"),
-        ),
+// Add the new action enum
+type ManageFeatureArgs struct {
+    Action string `json:"action" jsonschema:"Action: 'list', 'do-feature'"`
+    // ...
+}
+
+func ManageFeatureHandler(c *bitbucket.Client) func(...) {
+    return func(ctx context.Context, req *mcp.CallToolRequest, args ManageFeatureArgs) (*mcp.CallToolResult, any, error) {
+        switch args.Action {
+        case "do-feature":
+            // Call into bitbucket.Client here
+            result, err := c.DoFeature(...)
+        }
+    }
+}
+```
+
+### 3. Register Tool in server.go
+If this is an entirely new domain (e.g., Snippets), you'll need to define it in `internal/mcp/server.go`:
+
+```go
+addTool(s,
+    mcp.NewTool("manage_snippets",
+        mcp.WithDescription("Unified tool for snippet operations"),
+        mcp.WithString("action",
+		    mcp.Required(),
+		    mcp.Description("Action to perform: 'list', 'get'"),
+		    mcp.Enum("list", "get"),
+	    ),
+        // ...
     ),
-    v.MyNewToolHandler,
+    ManageSnippetsHandler(c),
 )
 ```
+
 
 ### 3. Write Tests
 

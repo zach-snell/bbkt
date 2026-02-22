@@ -9,11 +9,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 ### What is bbkt?
 
-bbkt is an MCP (Model Context Protocol) server that lets AI assistants interact with your Obsidian vault. It provides 70 tools for reading, writing, searching, and organizing notes.
+bbkt is an MCP (Model Context Protocol) server and CLI tool that lets AI assistants interact with your Bitbucket repositories. It provides tools for reading arrays of projects, managing pull requests, triggering pipelines, and editing source code.
 
-### Do I need Obsidian installed?
+### Do I need a specific Bitbucket plan?
 
-No. bbkt works directly with Markdown files in your vault folder. Obsidian doesn't need to be installed or running.
+No. bbkt works with standard Bitbucket Cloud environments. It does not currently support on-premises Bitbucket Server/Data Center.
 
 ### Which AI assistants work with this?
 
@@ -23,182 +23,44 @@ Any MCP-compatible client:
 - Cline (VS Code extension)
 - Other MCP clients
 
-### Is my data sent to the cloud?
+### Is my code sent to the cloud?
 
-bbkt itself is completely local. However, when you use it with an AI assistant like Claude, the note content you discuss is sent to that AI provider. See [Security](/bbkt/advanced/security) for details.
+bbkt relies on direct HTTP calls between your local machine and `api.bitbucket.org`. When using an AI assistant like Claude, the repository content you discuss or fetch via the tools is sent to that specific AI provider to generate context.
 
-## Installation
+## Configuration & Authentication
 
-### How do I install on Windows?
+### How do I authenticate?
 
-Download the Windows binary from [GitHub Releases](https://github.com/zach-snell/bbkt/releases) and add it to your PATH, or use:
+The most reliable integration method is using an **Atlassian API Token** rather than an App Password. 
+Set `BITBUCKET_USERNAME` and `BITBUCKET_API_TOKEN` in your MCP client's configuration file.
 
-```powershell
-go install github.com/zach-snell/bbkt@latest
-```
+### Does bbkt support OAuth?
 
-### The install script says "permission denied"
-
-Try installing to your home directory:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/zach-snell/bbkt/main/install.sh | bash -s -- --user
-```
-
-This installs to `~/.local/bin` instead of requiring sudo.
-
-### How do I upgrade?
-
-Re-run the install script or:
-
-```bash
-go install github.com/zach-snell/bbkt@latest
-```
-
-## Configuration
-
-### Where is the Claude Desktop config file?
-
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Linux | `~/.config/Claude/claude_desktop_config.json` |
-
-### Can I use multiple vaults?
-
-Yes! Add multiple entries to your MCP config:
-
-```json
-{
-  "mcpServers": {
-    "work-vault": {
-      "command": "bbkt",
-      "args": ["/path/to/work-vault"]
-    },
-    "personal-vault": {
-      "command": "bbkt",
-      "args": ["/path/to/personal-vault"]
-    }
-  }
-}
-```
+Yes! If you run the `bbkt` CLI manually without explicitly passing tokens, it will spin up a local server and prompt you to log in via a web browser using OAuth 2.0.
 
 ### The server isn't connecting
 
-1. Check the path in your config is correct
-2. Ensure the binary is in your PATH
+1. Check the path to the executable in your MCP config is correct
+2. Ensure you have valid `BITBUCKET_USERNAME` and `BITBUCKET_API_TOKEN` values assigned
 3. Restart Claude Desktop completely
 4. Check Claude Desktop logs for errors
 
 ## Usage
 
-### How do I see all available tools?
+### Why did you bundle 40 tools into 9?
 
-Ask your AI assistant:
-> "What tools are available for my Obsidian vault?"
+We originally ported over 40 highly specific tools (e.g., `approve_pull_request`, `create_pull_request`, `list_pull_requests`). However, we found that forcing massive tool schemas into the LLM context window quickly exceeded context limits and degraded performance.
 
-Or check the [Tools Overview](/bbkt/tools/overview).
+We "multiplexed" these tools into 9 domain-specific handlers (like `manage_pull_requests`) driven by an `action` enum. This drastically reduces prompt bloat and prevents AI hallucinations.
 
-### Why isn't the AI finding my note?
+### How do I prevent the AI from making accidental changes?
 
-Common causes:
-- Path might be different than expected (use `list-notes`)
-- Search is case-insensitive but might miss partial matches
-- Note might be in a subdirectory
+bbkt has built-in **Dynamic Token Introspection**. If your API token lacks the `write:repository` scope, bbkt automatically detects this and *silently drops* those specific tools from the MCP registration payload. The AI won't even know they exist!
 
-Try:
-> "List all notes in my vault" or "Search for [partial name]"
-
-### Can I undo changes?
-
-bbkt doesn't have undo. Use:
-- Git for version control
-- Obsidian's file recovery plugin
-- Regular backups
-
-### How do I prevent accidental deletions?
-
-Ask the AI to preview first:
-> "Show me what would be deleted, but don't delete yet"
-
-Or use `find-*` tools before `bulk-*` operations.
-
-## Features
-
-### Does it support Dataview queries?
-
-bbkt can read and write Dataview inline fields (`key:: value`), but it doesn't execute Dataview queries. The AI can help you query your data using the search and frontmatter tools.
-
-### Does it work with Obsidian plugins?
-
-It works with plugin data that's stored in files:
-- **Templates**: Works with any template files
-- **Daily Notes**: Works with any periodic notes
-- **Canvas**: Full canvas support
-
-It doesn't interact with:
-- Plugin settings
-- Plugin APIs
-- Obsidian's internal state
-
-### Can it read images or PDFs?
-
-No. bbkt only handles text files (Markdown, JSON for canvas). Images and PDFs are not processed.
-
-### Does it support wiki-style links?
-
-Yes! bbkt fully supports `[[wikilinks]]` and `[[wikilinks|with aliases]]`. Tools like `backlinks`, `forward-links`, and `rename-note` understand and update wikilinks.
-
-## Troubleshooting
-
-### "Command not found: bbkt"
-
-The binary isn't in your PATH. Either:
-- Add the install location to PATH
-- Use the full path in your MCP config
-
-### "Permission denied" when accessing vault
-
-Check file permissions:
+You can also explicitly ban tools using the `BITBUCKET_DISABLED_TOOLS` environment variable:
 ```bash
-ls -la /path/to/vault
+export BITBUCKET_DISABLED_TOOLS="manage_repositories,manage_source"
 ```
-
-The user running the MCP client needs read/write access.
-
-### Operations are slow
-
-For large vaults (10,000+ notes), some operations like full-vault search may take longer. Use:
-- `directory` parameter to limit scope
-- `limit` parameter to cap results
-
-### Claude says it can't access the vault
-
-1. Restart Claude Desktop
-2. Check config JSON is valid
-3. Verify path exists and is accessible
-4. Check Claude Desktop developer tools for errors
-
-## Comparison
-
-### vs. Obsidian REST Plugin
-
-| Feature | bbkt | REST Plugin |
-|---------|-----------------|-------------|
-| Requires Obsidian | No | Yes |
-| Runtime | Single binary | Obsidian running |
-| Protocol | MCP | HTTP REST |
-| Tool count | 70 | Varies |
-
-### vs. Other MCP Servers
-
-| Feature | bbkt | Node.js servers |
-|---------|-----------------|-----------------|
-| Runtime | None (binary) | Node.js |
-| Startup | ~10ms | Seconds |
-| Install | One file | npm install |
-| Platforms | All | Varies |
 
 ## Contributing
 
@@ -209,13 +71,6 @@ Open an issue on [GitHub](https://github.com/zach-snell/bbkt/issues) with:
 - What happened
 - Steps to reproduce
 - bbkt version
-
-### How do I request a feature?
-
-Open a GitHub issue with the `enhancement` label describing:
-- What you want to do
-- Why it would be useful
-- Any implementation ideas
 
 ### Can I contribute code?
 

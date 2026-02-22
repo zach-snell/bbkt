@@ -106,18 +106,15 @@ export BITBUCKET_DISABLED_TOOLS="delete_repository,delete_branch,delete_file"
 
 ## Tools Provided
 
-- `list_repositories`: List repositories in a workspace.
-- `list_pull_requests`: List pull requests for a repository.
-- `create_pull_request`: Open a new pull request.
-- `merge_pull_request`: Merge an existing pull request.
-- `approve_pull_request`: Approve a pull request.
-- `create_pr_comment`: Reply to or add an inline comment on a pull request.
-- `list_pr_commits`: See exactly which commits are included in a PR.
-- `list_pipelines`: View build/deployment pipelines across a repository.
-- `get_pipeline`: Fetch specific details about a pipeline run.
-- `list_branches`: View existing branches.
-- `list_commits`: View recent commits to a repository.
-- `get_diffstat`: See file additions and deletions for a specific commit or PR.
+- `manage_workspaces`: Getting and listing Bitbucket workspaces
+- `manage_repositories`: Listing, getting, creating, and deleting repositories
+- `manage_refs`: Listing, creating, and deleting branches and tags
+- `manage_commits`: Listing and getting commits, diffs, and diffstats
+- `manage_source`: Source code operations (read, list_directory, get_history, search, write, delete)
+- `manage_pull_requests`: All pull request operations (list, get, create, update, merge, approve, unapprove, decline, diff, diffstat, commits)
+- `manage_pr_comments`: Managing pull request comments (list, create, update, delete, resolve, unresolve)
+- `manage_pipelines`: Managing Bitbucket Pipelines (list, get, trigger, stop, list-steps, get-step-log)
+- `manage_issues`: Managing repository issues (list, get, create, update)
 
 ## Development
 

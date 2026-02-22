@@ -171,7 +171,7 @@ func (c *Client) Get(path string) ([]byte, error) {
 }
 
 // GetWithScopes performs a GET request and returns the response body and the x-oauth-scopes header.
-func (c *Client) GetWithScopes(path string) ([]byte, string, error) {
+func (c *Client) GetWithScopes(path string) (body []byte, scopes string, err error) {
 	resp, err := c.do(http.MethodGet, path, nil, "")
 	if err != nil {
 		return nil, "", err
