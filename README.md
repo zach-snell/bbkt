@@ -92,9 +92,7 @@ bbkt mcp --port 8080
 
 ### API Token Scopes & Security
 
-When creating your Atlassian API Token, we recommend granting the following scopes for a balanced experience:
-
-`read:account, read:user, read:repository:bitbucket, write:repository:bitbucket, read:pullrequest:bitbucket, write:pullrequest:bitbucket, read:pipeline:bitbucket, write:pipeline:bitbucket`
+`read:workspace, read:account, read:user, read:repository:bitbucket, write:repository:bitbucket, read:pullrequest:bitbucket, write:pullrequest:bitbucket, read:pipeline:bitbucket, write:pipeline:bitbucket`
 
 **Token Introspection:** The `bbkt mcp` server dynamically evaluates your API token's granted scopes at startup. If you omit specific permissions (like `write:pipeline:bitbucket`), the server will completely hide the associated MCP tools (`trigger_pipeline`, `stop_pipeline`) from the AI agent to prevent hallucinated successes.
 
