@@ -43,7 +43,32 @@ var prCommentsListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No comments found.")
+				return
+			}
+			t := NewTable()
+			t.Header("ID", "Author", "Content", "Created")
+			for _, c := range result.Values {
+				author := "-"
+				if c.User != nil {
+					author = c.User.DisplayName
+				}
+				content := Truncate(c.Content.Raw, 50)
+				if c.Deleted {
+					content = "(deleted)"
+				}
+				t.Row(
+					fmt.Sprintf("%d", c.ID),
+					author,
+					content,
+					FormatTime(c.CreatedOn),
+				)
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -91,7 +116,17 @@ var prCommentsAddCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Added comment #%d\n", result.ID)
+			if result.User != nil {
+				KV("Author", result.User.DisplayName)
+			}
+			KV("Content", Truncate(result.Content.Raw, 80))
+			if result.Inline != nil {
+				KV("File", result.Inline.Path)
+			}
+			KV("Created", FormatTime(result.CreatedOn))
+		})
 	},
 }
 

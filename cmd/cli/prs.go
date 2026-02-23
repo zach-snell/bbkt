@@ -43,7 +43,35 @@ var prsListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No pull requests found.")
+				return
+			}
+			t := NewTable()
+			t.Header("ID", "Title", "State", "Author", "Source", "Updated")
+			for _, pr := range result.Values {
+				author := "-"
+				if pr.Author != nil {
+					author = pr.Author.DisplayName
+				}
+				branch := "-"
+				if pr.Source.Branch != nil {
+					branch = pr.Source.Branch.Name
+				}
+				title := Truncate(pr.Title, 50)
+				t.Row(
+					fmt.Sprintf("#%d", pr.ID),
+					title,
+					pr.State,
+					author,
+					branch,
+					FormatTime(pr.UpdatedOn),
+				)
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -75,7 +103,37 @@ var prsGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Pull Request #%d: %s\n", result.ID, result.Title)
+			KV("State", result.State)
+			if result.Draft {
+				KV("Draft", "yes")
+			}
+			if result.Author != nil {
+				KV("Author", result.Author.DisplayName)
+			}
+			if result.Source.Branch != nil {
+				KV("Source", result.Source.Branch.Name)
+			}
+			if result.Destination.Branch != nil {
+				KV("Destination", result.Destination.Branch.Name)
+			}
+			if result.Description != "" {
+				KV("Description", Truncate(result.Description, 80))
+			}
+			KVf("Comments", "%d", result.CommentCount)
+			KVf("Tasks", "%d", result.TaskCount)
+			if len(result.Reviewers) > 0 {
+				names := make([]string, len(result.Reviewers))
+				for i, r := range result.Reviewers {
+					names[i] = r.DisplayName
+				}
+				KV("Reviewers", strings.Join(names, ", "))
+			}
+			KV("Close Branch", FormatBool(result.CloseSourceBranch))
+			KV("Created", FormatTime(result.CreatedOn))
+			KV("Updated", FormatTime(result.UpdatedOn))
+		})
 	},
 }
 
@@ -168,7 +226,20 @@ var prsCreateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Created Pull Request #%d: %s\n", result.ID, result.Title)
+			KV("State", result.State)
+			if result.Source.Branch != nil {
+				KV("Source", result.Source.Branch.Name)
+			}
+			if result.Destination.Branch != nil {
+				KV("Destination", result.Destination.Branch.Name)
+			}
+			if result.Draft {
+				KV("Draft", "yes")
+			}
+			KV("Created", FormatTime(result.CreatedOn))
+		})
 	},
 }
 
@@ -207,7 +278,14 @@ var prsMergeCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Merged Pull Request #%d: %s\n", result.ID, result.Title)
+			KV("State", result.State)
+			if result.MergeCommit != nil {
+				KV("Merge Commit", result.MergeCommit.Hash[:12])
+			}
+			KV("Updated", FormatTime(result.UpdatedOn))
+		})
 	},
 }
 

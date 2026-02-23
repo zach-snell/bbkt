@@ -38,6 +38,5 @@ func Execute() {
 }
 
 func init() {
-	// Configure global flags here
-	// RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.bbkt.yaml)")
+	RootCmd.PersistentFlags().Bool("json", false, "Output raw JSON instead of formatted tables")
 }

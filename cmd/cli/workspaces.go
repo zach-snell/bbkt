@@ -24,7 +24,19 @@ var workspacesListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No workspaces found.")
+				return
+			}
+			t := NewTable()
+			t.Header("Name", "Slug", "Visibility")
+			for _, w := range result.Values {
+				t.Row(w.Name, w.Slug, FormatPrivate(w.IsPrivate))
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -42,7 +54,12 @@ var workspacesGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Workspace: %s\n", result.Name)
+			KV("Slug", result.Slug)
+			KV("UUID", result.UUID)
+			KV("Visibility", FormatPrivate(result.IsPrivate))
+		})
 	},
 }
 

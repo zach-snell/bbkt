@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -91,7 +92,27 @@ var sourceTreeCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No entries found.")
+				return
+			}
+			t := NewTable()
+			t.Header("Type", "Path", "Size")
+			for _, entry := range result.Values {
+				entryType := "file"
+				if entry.Type == "commit_directory" {
+					entryType = "dir"
+				}
+				size := "-"
+				if entry.Size > 0 {
+					size = formatFileSize(entry.Size)
+				}
+				t.Row(entryType, entry.Path, size)
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -120,7 +141,43 @@ var sourceHistoryCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No history found.")
+				return
+			}
+			t := NewTable()
+			t.Header("Hash", "Author", "Date", "Message")
+			for _, raw := range result.Values {
+				// Parse each raw commit JSON
+				var commit struct {
+					Hash    string `json:"hash"`
+					Message string `json:"message"`
+					Date    string `json:"date"`
+					Author  struct {
+						Raw  string `json:"raw"`
+						User *struct {
+							DisplayName string `json:"display_name"`
+						} `json:"user"`
+					} `json:"author"`
+				}
+				if err := json.Unmarshal(raw, &commit); err != nil {
+					continue
+				}
+				hash := commit.Hash
+				if len(hash) > 10 {
+					hash = hash[:10]
+				}
+				author := commit.Author.Raw
+				if commit.Author.User != nil {
+					author = commit.Author.User.DisplayName
+				}
+				msg := Truncate(commit.Message, 50)
+				t.Row(hash, author, commit.Date[:10], msg)
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -248,4 +305,17 @@ func init() {
 	sourceDeleteCmd.Flags().StringP("message", "m", "", "Commit message")
 	sourceDeleteCmd.Flags().StringP("branch", "b", "", "Branch to commit to")
 	sourceDeleteCmd.Flags().StringP("author", "a", "", "Commit author in 'Name <email>' format")
+}
+
+// formatFileSize formats bytes into human-readable size.
+func formatFileSize(bytes int64) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%dB", bytes)
+	}
+	kb := float64(bytes) / 1024
+	if kb < 1024 {
+		return fmt.Sprintf("%.1fK", kb)
+	}
+	mb := kb / 1024
+	return fmt.Sprintf("%.1fM", mb)
 }

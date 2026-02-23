@@ -3,8 +3,8 @@ Output demo.gif
 
 Set Shell zsh
 Set FontSize 16
-Set Width 900
-Set Height 550
+Set Width 950
+Set Height 600
 Set Padding 20
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 40ms
@@ -19,12 +19,22 @@ Sleep 400ms
 Enter
 Sleep 2s
 
-Type "bbkt repos list acme-corp"
+Type "bbkt workspaces list"
 Sleep 400ms
 Enter
 Sleep 2s
 
-Type "bbkt prs list acme-corp api-gateway"
+Type "bbkt repos list bbkt-test"
 Sleep 400ms
 Enter
-Sleep 4s
+Sleep 2s
+
+Type "bbkt source tree bbkt-test bbkt"
+Sleep 400ms
+Enter
+Sleep 2s
+
+Type "bbkt repos get bbkt-test bbkt"
+Sleep 400ms
+Enter
+Sleep 3s

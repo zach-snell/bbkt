@@ -42,7 +42,36 @@ var pipelinesListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No pipelines found.")
+				return
+			}
+			t := NewTable()
+			t.Header("#", "State", "Branch", "Duration", "Created")
+			for _, p := range result.Values {
+				state := "-"
+				if p.State != nil {
+					state = p.State.Name
+					if p.State.Result != nil {
+						state = p.State.Result.Name
+					}
+				}
+				branch := "-"
+				if p.Target != nil && p.Target.RefName != "" {
+					branch = p.Target.RefName
+				}
+				t.Row(
+					fmt.Sprintf("%d", p.BuildNumber),
+					state,
+					branch,
+					FormatDuration(p.DurationSecs),
+					FormatTime(p.CreatedOn),
+				)
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -68,7 +97,28 @@ var pipelinesGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Pipeline #%d\n", result.BuildNumber)
+			KV("UUID", result.UUID)
+			if result.State != nil {
+				state := result.State.Name
+				if result.State.Result != nil {
+					state = result.State.Result.Name
+				}
+				KV("State", state)
+			}
+			if result.Target != nil {
+				KV("Branch", result.Target.RefName)
+				KV("Ref Type", result.Target.RefType)
+			}
+			KV("Trigger", result.TriggerName)
+			if result.Creator != nil {
+				KV("Creator", result.Creator.DisplayName)
+			}
+			KV("Duration", FormatDuration(result.DurationSecs))
+			KV("Created", FormatTime(result.CreatedOn))
+			KV("Completed", FormatTimePtr(result.CompletedOn))
+		})
 	},
 }
 
@@ -150,7 +200,17 @@ var pipelinesTriggerCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Triggered Pipeline #%d\n", result.BuildNumber)
+			KV("UUID", result.UUID)
+			if result.State != nil {
+				KV("State", result.State.Name)
+			}
+			if result.Target != nil {
+				KV("Branch", result.Target.RefName)
+			}
+			KV("Created", FormatTime(result.CreatedOn))
+		})
 	},
 }
 
@@ -202,7 +262,30 @@ var pipelinesStepsCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No steps found.")
+				return
+			}
+			t := NewTable()
+			t.Header("Name", "State", "Duration", "Started")
+			for _, s := range result.Values {
+				state := "-"
+				if s.State != nil {
+					state = s.State.Name
+					if s.State.Result != nil {
+						state = s.State.Result.Name
+					}
+				}
+				t.Row(
+					s.Name,
+					state,
+					FormatDuration(s.DurationSecs),
+					FormatTimePtr(s.StartedOn),
+				)
+			}
+			t.Flush()
+		})
 	},
 }
 

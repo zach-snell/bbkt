@@ -47,7 +47,30 @@ var issuesListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No issues found.")
+				return
+			}
+			t := NewTable()
+			t.Header("ID", "Title", "State", "Kind", "Priority", "Assignee")
+			for _, issue := range result.Values {
+				assignee := "-"
+				if issue.Assignee != nil {
+					assignee = issue.Assignee.DisplayName
+				}
+				t.Row(
+					fmt.Sprintf("#%d", issue.ID),
+					Truncate(issue.Title, 45),
+					issue.State,
+					issue.Kind,
+					issue.Priority,
+					assignee,
+				)
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -79,7 +102,27 @@ var issuesGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Issue #%d: %s\n", result.ID, result.Title)
+			KV("State", result.State)
+			KV("Kind", result.Kind)
+			KV("Priority", result.Priority)
+			if result.Assignee != nil {
+				KV("Assignee", result.Assignee.DisplayName)
+			} else {
+				KV("Assignee", "unassigned")
+			}
+			if result.Reporter != nil {
+				KV("Reporter", result.Reporter.DisplayName)
+			}
+			if result.Content.Raw != "" {
+				KV("Description", Truncate(result.Content.Raw, 80))
+			}
+			KVf("Votes", "%d", result.Votes)
+			KVf("Watches", "%d", result.Watches)
+			KV("Created", FormatTime(result.CreatedOn))
+			KV("Updated", FormatTime(result.UpdatedOn))
+		})
 	},
 }
 
@@ -120,7 +163,13 @@ var issuesCreateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Created Issue #%d: %s\n", result.ID, result.Title)
+			KV("Kind", result.Kind)
+			KV("Priority", result.Priority)
+			KV("State", result.State)
+			KV("Created", FormatTime(result.CreatedOn))
+		})
 	},
 }
 
@@ -180,7 +229,16 @@ var issuesUpdateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Updated Issue #%d: %s\n", result.ID, result.Title)
+			KV("State", result.State)
+			KV("Kind", result.Kind)
+			KV("Priority", result.Priority)
+			if result.Assignee != nil {
+				KV("Assignee", result.Assignee.DisplayName)
+			}
+			KV("Updated", FormatTime(result.UpdatedOn))
+		})
 	},
 }
 

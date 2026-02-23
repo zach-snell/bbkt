@@ -52,7 +52,23 @@ var reposListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			if len(result.Values) == 0 {
+				fmt.Println("No repositories found.")
+				return
+			}
+			t := NewTable()
+			t.Header("Full Name", "Language", "Visibility", "Updated")
+			for _, r := range result.Values {
+				lang := r.Language
+				if lang == "" {
+					lang = "-"
+				}
+				t.Row(r.FullName, lang, FormatPrivate(r.IsPrivate), FormatTime(r.UpdatedOn))
+			}
+			t.Flush()
+			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
+		})
 	},
 }
 
@@ -77,7 +93,32 @@ var reposGetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Repository: %s\n", result.FullName)
+			KV("Slug", result.Slug)
+			KV("UUID", result.UUID)
+			if result.Description != "" {
+				KV("Description", Truncate(result.Description, 80))
+			}
+			lang := result.Language
+			if lang == "" {
+				lang = "-"
+			}
+			KV("Language", lang)
+			KV("SCM", result.SCM)
+			KV("Visibility", FormatPrivate(result.IsPrivate))
+			if result.MainBranch != nil {
+				KV("Main Branch", result.MainBranch.Name)
+			}
+			if result.Owner != nil {
+				KV("Owner", result.Owner.DisplayName)
+			}
+			if result.Project != nil {
+				KV("Project", result.Project.Key)
+			}
+			KV("Created", FormatTime(result.CreatedOn))
+			KV("Updated", FormatTime(result.UpdatedOn))
+		})
 	},
 }
 
@@ -113,7 +154,15 @@ var reposCreateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		PrintJSON(result)
+		PrintOrJSON(cmd, result, func() {
+			fmt.Printf("Created repository: %s\n", result.FullName)
+			KV("Slug", result.Slug)
+			KV("Visibility", FormatPrivate(result.IsPrivate))
+			if result.Language != "" {
+				KV("Language", result.Language)
+			}
+			KV("Created", FormatTime(result.CreatedOn))
+		})
 	},
 }
 
