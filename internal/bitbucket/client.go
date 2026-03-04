@@ -87,9 +87,15 @@ func (c *Client) ensureValidToken() error {
 }
 
 // do executes an HTTP request with auth headers.
-func (c *Client) do(method, path string, bodyData []byte, contentType string) (*http.Response, error) {
+// An optional accept parameter overrides the default "application/json" Accept header.
+func (c *Client) do(method, path string, bodyData []byte, contentType string, accept ...string) (*http.Response, error) {
 	if err := c.ensureValidToken(); err != nil {
 		return nil, err
+	}
+
+	acceptHeader := "application/json"
+	if len(accept) > 0 && accept[0] != "" {
+		acceptHeader = accept[0]
 	}
 
 	u := c.baseURL + path
