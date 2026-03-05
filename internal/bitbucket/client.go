@@ -240,9 +240,9 @@ func parseScopesString(s string) []string {
 	return scopes
 }
 
-// GetRaw performs a GET and returns raw bytes (for file content).
+// GetRaw performs a GET and returns raw bytes (for file content, logs, etc.).
 func (c *Client) GetRaw(path string) (data []byte, contentType string, err error) {
-	resp, doErr := c.do(http.MethodGet, path, nil, "")
+	resp, doErr := c.do(http.MethodGet, path, nil, "", "application/octet-stream")
 	if doErr != nil {
 		return nil, "", doErr
 	}
