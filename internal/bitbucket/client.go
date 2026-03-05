@@ -119,7 +119,7 @@ func (c *Client) do(method, path string, bodyData []byte, contentType string, ac
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", acceptHeader)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -149,7 +149,7 @@ func (c *Client) do(method, path string, bodyData []byte, contentType string, ac
 		if contentType != "" {
 			req2.Header.Set("Content-Type", contentType)
 		}
-		req2.Header.Set("Accept", "application/json")
+		req2.Header.Set("Accept", acceptHeader)
 		return c.http.Do(req2)
 	}
 
