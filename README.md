@@ -10,6 +10,10 @@ A complete command-line interface and Model Context Protocol (MCP) server writte
   <img src="demo.gif" alt="bbkt CLI demo" width="700" />
 </p>
 
+<a href="https://glama.ai/mcp/servers/zach-snell/bbkt">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/zach-snell/bbkt/badge" alt="bbkt MCP server" />
+</a>
+
 ## Features
 
 - **Dual Mode**: Run as a rich, interactive CLI tool for daily developer tasks, or as an MCP server for AI agents.
