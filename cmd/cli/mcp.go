@@ -14,6 +14,7 @@ import (
 )
 
 var port int
+var noAuth bool
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
@@ -29,35 +30,40 @@ run it using the HTTP Streamable transport.`,
 func init() {
 	RootCmd.AddCommand(mcpCmd)
 	mcpCmd.Flags().IntVarP(&port, "port", "p", 0, "Port to listen on for HTTP Streamable transport")
+	mcpCmd.Flags().BoolVar(&noAuth, "no-auth", false, "Start server without authentication (tools will return auth-required errors when called)")
 }
 
 func runServer() {
-	// Priority: env vars > stored credentials
-	username := os.Getenv("BITBUCKET_USERNAME")
-	password := os.Getenv("BITBUCKET_API_TOKEN")
-	token := os.Getenv("BITBUCKET_ACCESS_TOKEN")
-
 	var s *mcp.Server
 
-	if token != "" || (username != "" && password != "") {
-		s = mcpserver.New(username, password, token)
+	if noAuth {
+		s = mcpserver.NewUnauthenticated()
 	} else {
-		creds, err := bitbucket.LoadCredentials()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "No credentials found. Either:\n")
-			fmt.Fprintf(os.Stderr, "  1. Run: bbkt auth          (API token — recommended)\n")
-			fmt.Fprintf(os.Stderr, "  2. Run: bbkt auth --oauth   (OAuth via browser)\n")
-			fmt.Fprintf(os.Stderr, "  3. Set BITBUCKET_ACCESS_TOKEN env var\n")
-			fmt.Fprintf(os.Stderr, "  4. Set BITBUCKET_USERNAME + BITBUCKET_API_TOKEN env vars\n")
-			os.Exit(1)
-		}
+		// Priority: env vars > stored credentials
+		username := os.Getenv("BITBUCKET_USERNAME")
+		password := os.Getenv("BITBUCKET_API_TOKEN")
+		token := os.Getenv("BITBUCKET_ACCESS_TOKEN")
 
-		switch {
-		case creds.IsAPIToken() || creds.IsOAuth():
-			s = mcpserver.NewFromCredentials(creds)
-		default:
-			fmt.Fprintf(os.Stderr, "Unknown auth type in stored credentials: %s\n", creds.AuthType)
-			os.Exit(1)
+		if token != "" || (username != "" && password != "") {
+			s = mcpserver.New(username, password, token)
+		} else {
+			creds, err := bitbucket.LoadCredentials()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "No credentials found. Either:\n")
+				fmt.Fprintf(os.Stderr, "  1. Run: bbkt auth          (API token — recommended)\n")
+				fmt.Fprintf(os.Stderr, "  2. Run: bbkt auth --oauth   (OAuth via browser)\n")
+				fmt.Fprintf(os.Stderr, "  3. Set BITBUCKET_ACCESS_TOKEN env var\n")
+				fmt.Fprintf(os.Stderr, "  4. Set BITBUCKET_USERNAME + BITBUCKET_API_TOKEN env vars\n")
+				os.Exit(1)
+			}
+
+			switch {
+			case creds.IsAPIToken() || creds.IsOAuth():
+				s = mcpserver.NewFromCredentials(creds)
+			default:
+				fmt.Fprintf(os.Stderr, "Unknown auth type in stored credentials: %s\n", creds.AuthType)
+				os.Exit(1)
+			}
 		}
 	}
 

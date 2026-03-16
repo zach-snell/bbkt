@@ -129,6 +129,89 @@ func addTool[In any](s *mcp.Server, disabled map[string]bool, tokenScopes []stri
 	mcp.AddTool(s, &tool, handler)
 }
 
+// NewUnauthenticated creates an MCP server with all tools registered but no working client.
+// Every tool call returns an auth-required message. Used for server inspection (e.g., Glama).
+func NewUnauthenticated() *mcp.Server {
+	s := mcp.NewServer(
+		&mcp.Implementation{
+			Name:    "bbkt",
+			Version: version.Version,
+		},
+		nil,
+	)
+	registerToolsUnauthenticated(s)
+	return s
+}
+
+const authRequiredMessage = `Authentication required. Configure credentials via:
+  1. Run: bbkt auth          (API token — recommended)
+  2. Run: bbkt auth --oauth  (OAuth via browser)
+  3. Set environment variables (BITBUCKET_ACCESS_TOKEN or BITBUCKET_USERNAME + BITBUCKET_API_TOKEN)
+  4. Config file: ~/.config/bbkt/credentials.json`
+
+// addUnauthenticatedTool registers a tool with a handler that always returns an auth-required message.
+func addUnauthenticatedTool[In any](s *mcp.Server, tool mcp.Tool) {
+	mcp.AddTool(s, &tool, func(_ context.Context, _ *mcp.CallToolRequest, _ In) (*mcp.CallToolResult, any, error) {
+		return ToolResultText(authRequiredMessage), nil, nil
+	})
+}
+
+func registerToolsUnauthenticated(s *mcp.Server) {
+	// ─── Workspaces ──────────────────────────────────────────────────
+	addUnauthenticatedTool[ManageWorkspacesArgs](s, mcp.Tool{
+		Name:        "manage_workspaces",
+		Description: "Unified tool for getting and listing Bitbucket workspaces",
+	})
+
+	// ─── Repositories ────────────────────────────────────────────────
+	addUnauthenticatedTool[ManageRepositoriesArgs](s, mcp.Tool{
+		Name:        "manage_repositories",
+		Description: "Unified tool for listing, getting, creating, and deleting repositories",
+	})
+
+	// ─── Branches & Tags ─────────────────────────────────────────────
+	addUnauthenticatedTool[ManageRefsArgs](s, mcp.Tool{
+		Name:        "manage_refs",
+		Description: "Unified tool for listing, creating, and deleting branches and tags",
+	})
+
+	// ─── Commits ─────────────────────────────────────────────────────
+	addUnauthenticatedTool[ManageCommitsArgs](s, mcp.Tool{
+		Name:        "manage_commits",
+		Description: "Unified tool for listing and getting commits, diffs, and diffstats",
+	})
+
+	// ─── Pull Requests ───────────────────────────────────────────────
+	addUnauthenticatedTool[ManagePullRequestsArgs](s, mcp.Tool{
+		Name:        "manage_pull_requests",
+		Description: "Unified tool covering all pull request operations (list, get, create, update, merge, approve, unapprove, decline, diff, diffstat, commits)",
+	})
+
+	// ─── PR Comments ─────────────────────────────────────────────────
+	addUnauthenticatedTool[ManagePRCommentsArgs](s, mcp.Tool{
+		Name:        "manage_pr_comments",
+		Description: "Unified tool for managing pull request comments (list, create, update, delete, resolve, unresolve)",
+	})
+
+	// ─── Source / File Browsing ──────────────────────────────────────
+	addUnauthenticatedTool[ManageSourceArgs](s, mcp.Tool{
+		Name:        "manage_source",
+		Description: "Unified tool for source code operations (read, list_directory, get_history, search, write, delete)",
+	})
+
+	// ─── Pipelines ───────────────────────────────────────────────────
+	addUnauthenticatedTool[ManagePipelinesArgs](s, mcp.Tool{
+		Name:        "manage_pipelines",
+		Description: "Unified tool for managing Bitbucket Pipelines (list, get, trigger, stop, list-steps, get-step-log)",
+	})
+
+	// ─── Issues ──────────────────────────────────────────────────────
+	addUnauthenticatedTool[ManageIssuesArgs](s, mcp.Tool{
+		Name:        "manage_issues",
+		Description: "Unified tool for managing repository issues (list, get, create, update)",
+	})
+}
+
 func registerTools(s *mcp.Server, c *bitbucket.Client) {
 	disabledToolsEnv := os.Getenv("BITBUCKET_DISABLED_TOOLS")
 	disabled := make(map[string]bool)
