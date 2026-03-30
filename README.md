@@ -18,6 +18,10 @@ A complete command-line interface and Model Context Protocol (MCP) server writte
 - **Read/Write Operations**: Seamlessly manage repositories, workspaces, pipelines, issues, and pull requests. Modify or delete repository source code directly from the API.
 - **Authentication**: Supports standard App Passwords or an interactive OAuth 2.0 web flow for desktop users.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/zach-snell-bbkt).
+
 ## Installation
 
 ### From Source
