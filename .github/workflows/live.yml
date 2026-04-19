@@ -1,0 +1,79 @@
+name: Live API Tests
+
+# Runs the live-tag test tier (go test -tags=live ./...) against real
+# Bitbucket using a sandbox profile. Scheduled nightly and available via
+# manual dispatch. No-ops cleanly if the required secrets are not configured,
+# so this workflow is safe to keep enabled before you set up a sandbox.
+#
+# Required repository secrets (set in Settings > Secrets and variables > Actions):
+#   BBKT_LIVE_WORKSPACE  workspace slug the profile can access (required)
+#   BBKT_LIVE_REPO       repo slug for PR-level tests (optional)
+#   BBKT_API_EMAIL       Atlassian email for the sandbox profile
+#   BBKT_API_TOKEN       Atlassian API token for the sandbox profile
+
+on:
+  schedule:
+    - cron: "17 7 * * *" # 07:17 UTC nightly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Live smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for required secrets
+        id: guard
+        env:
+          BBKT_LIVE_WORKSPACE: ${{ secrets.BBKT_LIVE_WORKSPACE }}
+          BBKT_API_EMAIL: ${{ secrets.BBKT_API_EMAIL }}
+          BBKT_API_TOKEN: ${{ secrets.BBKT_API_TOKEN }}
+        run: |
+          if [ -z "$BBKT_LIVE_WORKSPACE" ] || [ -z "$BBKT_API_EMAIL" ] || [ -z "$BBKT_API_TOKEN" ]; then
+            echo "Live-test secrets not configured — skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Go
+        if: steps.guard.outputs.configured == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: Seed credentials file
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          BBKT_API_EMAIL: ${{ secrets.BBKT_API_EMAIL }}
+          BBKT_API_TOKEN: ${{ secrets.BBKT_API_TOKEN }}
+        run: |
+          mkdir -p "$HOME/.config/bbkt"
+          # Hand-written ProfileStore — avoids the interactive login flow.
+          cat > "$HOME/.config/bbkt/credentials.json" <<EOF
+          {
+            "active_profile": "ci",
+            "profiles": {
+              "ci": {
+                "auth_type": "api_token",
+                "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "email": "$BBKT_API_EMAIL",
+                "api_token": "$BBKT_API_TOKEN"
+              }
+            }
+          }
+          EOF
+          chmod 600 "$HOME/.config/bbkt/credentials.json"
+
+      - name: Run live tests
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          BBKT_LIVE_WORKSPACE: ${{ secrets.BBKT_LIVE_WORKSPACE }}
+          BBKT_LIVE_REPO: ${{ secrets.BBKT_LIVE_REPO }}
+          BBKT_PROFILE: ci
+        run: go test -tags=live -v -timeout 5m ./internal/bitbucket/...

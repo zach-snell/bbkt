@@ -1,0 +1,123 @@
+---
+version: 2
+interactions:
+  - id: 0
+    request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      content_length: 0
+      host: api.bitbucket.org
+      url: https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests?state=OPEN&pagelen=25&page=1
+      method: GET
+      headers:
+        Accept:
+          - application/json
+    response:
+      proto: HTTP/2.0
+      proto_major: 2
+      proto_minor: 0
+      content_length: -1
+      uncompressed: true
+      status: 200 OK
+      code: 200
+      duration: 42ms
+      headers:
+        Content-Type:
+          - application/json; charset=utf-8
+      body: |
+        {
+          "pagelen": 25,
+          "size": 2,
+          "page": 1,
+          "values": [
+            {
+              "id": 42,
+              "title": "Add OAuth refresh-token rotation",
+              "description": "Rotates refresh tokens on every refresh.",
+              "state": "OPEN",
+              "draft": false,
+              "close_source_branch": true,
+              "comment_count": 3,
+              "task_count": 0,
+              "created_on": "2026-03-01T10:15:00.000000+00:00",
+              "updated_on": "2026-03-03T14:22:00.000000+00:00",
+              "type": "pullrequest",
+              "source": {
+                "branch": {"name": "feature/oauth-rotation", "type": "branch", "links": {}},
+                "commit": {"hash": "a1b2c3d4e5f6", "type": "commit", "links": {}},
+                "repository": {"full_name": "demo-ws/demo-repo", "name": "demo-repo", "uuid": "{repo-uuid}", "type": "repository"}
+              },
+              "destination": {
+                "branch": {"name": "main", "type": "branch", "links": {}},
+                "commit": {"hash": "0123456789ab", "type": "commit", "links": {}},
+                "repository": {"full_name": "demo-ws/demo-repo", "name": "demo-repo", "uuid": "{repo-uuid}", "type": "repository"}
+              },
+              "author": {
+                "uuid": "{author-uuid}",
+                "display_name": "Aulia Lionar",
+                "nickname": "alionar",
+                "account_id": "acc-001",
+                "type": "user",
+                "links": {}
+              },
+              "reviewers": [
+                {
+                  "uuid": "{reviewer-uuid}",
+                  "display_name": "Zach Snell",
+                  "nickname": "zsnell",
+                  "account_id": "acc-002",
+                  "type": "user",
+                  "links": {}
+                }
+              ],
+              "participants": [
+                {
+                  "user": {"uuid": "{reviewer-uuid}", "display_name": "Zach Snell", "type": "user", "links": {}},
+                  "role": "REVIEWER",
+                  "approved": false,
+                  "state": ""
+                }
+              ],
+              "merge_commit": null,
+              "links": {
+                "self": {"href": "https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests/42"},
+                "html": {"href": "https://bitbucket.org/demo-ws/demo-repo/pull-requests/42"}
+              }
+            },
+            {
+              "id": 43,
+              "title": "Fix inline-comment rendering",
+              "description": "Omit null from/to fields.",
+              "state": "OPEN",
+              "draft": true,
+              "close_source_branch": false,
+              "comment_count": 1,
+              "task_count": 0,
+              "created_on": "2026-03-03T12:13:42.000000+00:00",
+              "updated_on": "2026-03-31T20:09:45.000000+00:00",
+              "type": "pullrequest",
+              "source": {
+                "branch": {"name": "fix/inline-comment-null", "type": "branch", "links": {}},
+                "commit": {"hash": "7aca9ba04be0", "type": "commit", "links": {}},
+                "repository": {"full_name": "demo-ws/demo-repo", "name": "demo-repo", "uuid": "{repo-uuid}", "type": "repository"}
+              },
+              "destination": {
+                "branch": {"name": "main", "type": "branch", "links": {}},
+                "commit": {"hash": "0123456789ab", "type": "commit", "links": {}},
+                "repository": {"full_name": "demo-ws/demo-repo", "name": "demo-repo", "uuid": "{repo-uuid}", "type": "repository"}
+              },
+              "author": {
+                "uuid": "{author2-uuid}",
+                "display_name": "Vitautas Brazas",
+                "nickname": "vbrazas",
+                "type": "user",
+                "links": {}
+              },
+              "reviewers": [],
+              "participants": [],
+              "merge_commit": null,
+              "links": {}
+            }
+          ]
+        }

@@ -1,0 +1,56 @@
+---
+version: 2
+interactions:
+  - id: 0
+    request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      content_length: 0
+      host: api.bitbucket.org
+      url: https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pipelines/%7B11111111-1111-1111-1111-111111111111%7D
+      method: GET
+      headers:
+        Accept:
+          - application/json
+    response:
+      proto: HTTP/2.0
+      proto_major: 2
+      proto_minor: 0
+      content_length: -1
+      uncompressed: true
+      status: 200 OK
+      code: 200
+      duration: 28ms
+      headers:
+        Content-Type:
+          - application/json; charset=utf-8
+      body: |
+        {
+          "uuid": "{11111111-1111-1111-1111-111111111111}",
+          "build_number": 137,
+          "trigger_name": "MANUAL",
+          "duration_in_seconds": 184,
+          "created_on": "2026-03-10T08:00:00.000000+00:00",
+          "completed_on": "2026-03-10T08:03:04.000000+00:00",
+          "creator": {
+            "uuid": "{creator-uuid}",
+            "display_name": "Zach Snell",
+            "type": "user",
+            "links": {}
+          },
+          "state": {
+            "name": "COMPLETED",
+            "type": "pipeline_state_completed",
+            "result": {"name": "SUCCESSFUL", "type": "pipeline_state_completed_successful"},
+            "stage": null
+          },
+          "target": {
+            "type": "pipeline_ref_target",
+            "ref_type": "branch",
+            "ref_name": "main"
+          },
+          "links": {
+            "self": {"href": "https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pipelines/%7B11111111-1111-1111-1111-111111111111%7D"}
+          }
+        }
