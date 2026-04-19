@@ -10,16 +10,25 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
 
-const (
+// Package-var (not const) so tests can swap in an httptest.Server URL.
+var (
 	authURL       = "https://bitbucket.org/site/oauth2/authorize"
 	tokenEndpoint = "https://bitbucket.org/site/oauth2/access_token" //nolint:gosec // Not a hardcoded credential, just an endpoint url
 )
+
+// DefaultOAuthCallbackPort is the localhost port bbkt listens on for the OAuth
+// authorization-code callback. A fixed port is required because Bitbucket
+// validates the redirect_uri against the consumer's registered callback URL.
+// Override at runtime with BBKT_OAUTH_CALLBACK_PORT if this port is in use.
+const DefaultOAuthCallbackPort = 8976
 
 // RefreshOAuth uses the refresh token to get a new access token.
 // Updates the Credentials in place and persists to disk.
@@ -36,7 +45,8 @@ func RefreshOAuth(creds *Credentials) error {
 	req.SetBasicAuth(creds.ClientID, creds.ClientSecret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("refreshing token: %w", err)
 	}
@@ -62,6 +72,12 @@ func RefreshOAuth(creds *Credentials) error {
 		return fmt.Errorf("parsing refresh response: %w", err)
 	}
 
+	// Defensive: don't clobber a valid access token if the server returns 200
+	// with an empty one. Leaves creds mutation for after the guard.
+	if result.AccessToken == "" {
+		return fmt.Errorf("refresh response missing access_token: %s", string(body))
+	}
+
 	creds.AccessToken = result.AccessToken
 	if result.RefreshToken != "" {
 		creds.RefreshToken = result.RefreshToken
@@ -83,19 +99,28 @@ func OAuthLogin(clientID, clientSecret, profileName string) error {
 	}
 	state := hex.EncodeToString(stateBytes)
 
-	// Find a free port
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("finding free port: %w", err)
+	// Bitbucket validates redirect_uri against the consumer's registered callback
+	// URL, so we need a deterministic port rather than net.Listen("127.0.0.1:0").
+	port := DefaultOAuthCallbackPort
+	if env := os.Getenv("BBKT_OAUTH_CALLBACK_PORT"); env != "" {
+		if p, err := strconv.Atoi(env); err == nil && p > 0 {
+			port = p
+		}
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return fmt.Errorf("listening on 127.0.0.1:%d (port in use? set BBKT_OAUTH_CALLBACK_PORT to override): %w", port, err)
+	}
 	callbackURL := fmt.Sprintf("http://localhost:%d/callback", port)
 
-	// Build authorize URL
+	// Build authorize URL. redirect_uri is sent explicitly so Bitbucket matches
+	// on the URL we actually listen on (and so the same URL can be echoed back
+	// in the token exchange, which the OAuth spec requires).
 	params := url.Values{
 		"client_id":     {clientID},
 		"response_type": {"code"},
 		"state":         {state},
+		"redirect_uri":  {callbackURL},
 	}
 	authorizeURL := authURL + "?" + params.Encode()
 
@@ -165,8 +190,9 @@ func OAuthLogin(clientID, clientSecret, profileName string) error {
 	fmt.Println("Exchanging code for tokens...")
 
 	formData := url.Values{
-		"grant_type": {"authorization_code"},
-		"code":       {code},
+		"grant_type":   {"authorization_code"},
+		"code":         {code},
+		"redirect_uri": {callbackURL},
 	}
 
 	tokenReq, err := http.NewRequest(http.MethodPost, tokenEndpoint, strings.NewReader(formData.Encode()))
@@ -176,7 +202,8 @@ func OAuthLogin(clientID, clientSecret, profileName string) error {
 	tokenReq.SetBasicAuth(clientID, clientSecret)
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	tokenResp, err := http.DefaultClient.Do(tokenReq)
+	tokenClient := &http.Client{Timeout: 30 * time.Second}
+	tokenResp, err := tokenClient.Do(tokenReq)
 	if err != nil {
 		return fmt.Errorf("exchanging code: %w", err)
 	}
@@ -200,6 +227,10 @@ func OAuthLogin(clientID, clientSecret, profileName string) error {
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("parsing token response: %w", err)
+	}
+
+	if result.AccessToken == "" {
+		return fmt.Errorf("token response missing access_token: %s", string(body))
 	}
 
 	creds := &Credentials{
