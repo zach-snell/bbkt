@@ -87,9 +87,15 @@ func (c *Client) ensureValidToken() error {
 }
 
 // do executes an HTTP request with auth headers.
-func (c *Client) do(method, path string, bodyData []byte, contentType string) (*http.Response, error) {
+// An optional accept parameter overrides the default "application/json" Accept header.
+func (c *Client) do(method, path string, bodyData []byte, contentType string, accept ...string) (*http.Response, error) {
 	if err := c.ensureValidToken(); err != nil {
 		return nil, err
+	}
+
+	acceptHeader := "application/json"
+	if len(accept) > 0 && accept[0] != "" {
+		acceptHeader = accept[0]
 	}
 
 	u := c.baseURL + path
@@ -113,7 +119,7 @@ func (c *Client) do(method, path string, bodyData []byte, contentType string) (*
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", acceptHeader)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -143,7 +149,7 @@ func (c *Client) do(method, path string, bodyData []byte, contentType string) (*
 		if contentType != "" {
 			req2.Header.Set("Content-Type", contentType)
 		}
-		req2.Header.Set("Accept", "application/json")
+		req2.Header.Set("Accept", acceptHeader)
 		return c.http.Do(req2)
 	}
 
@@ -234,9 +240,9 @@ func parseScopesString(s string) []string {
 	return scopes
 }
 
-// GetRaw performs a GET and returns raw bytes (for file content).
+// GetRaw performs a GET and returns raw bytes (for file content, logs, etc.).
 func (c *Client) GetRaw(path string) (data []byte, contentType string, err error) {
-	resp, doErr := c.do(http.MethodGet, path, nil, "")
+	resp, doErr := c.do(http.MethodGet, path, nil, "", "application/octet-stream")
 	if doErr != nil {
 		return nil, "", doErr
 	}
