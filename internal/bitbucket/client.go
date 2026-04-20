@@ -211,11 +211,10 @@ func (c *Client) Scopes() ([]string, error) {
 		return c.apiTokenScopes, nil
 	}
 
-	_, scopesStr, _ := c.GetWithScopes("/workspace")
-	if scopesStr == "" {
-		// Try /user as fallback if workspace fails
-		_, scopesStr, _ = c.GetWithScopes("/user")
-	}
+	// /user returns the X-OAuth-Scopes header and works for both OAuth and API
+	// token auth. The previous code tried /workspace (singular) first, which
+	// has always 404'd — no such endpoint exists.
+	_, scopesStr, _ := c.GetWithScopes("/user")
 
 	if scopesStr == "" {
 		return nil, fmt.Errorf("failed to reliably fetch token scopes: API did not return X-OAuth-Scopes header")

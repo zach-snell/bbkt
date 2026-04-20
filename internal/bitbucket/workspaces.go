@@ -21,7 +21,10 @@ func (c *Client) ListWorkspaces(args ListWorkspacesArgs) (*Paginated[Workspace],
 		page = 1
 	}
 
-	path := fmt.Sprintf("/workspaces?pagelen=%d&page=%d", pagelen, page)
+	// /workspaces was deprecated by Bitbucket on 2026-02-25 (CHANGE-2770).
+	// /user/workspaces (added in CHANGE-3022) returns the same paginated
+	// envelope but scoped to the authenticated user's workspace memberships.
+	path := fmt.Sprintf("/user/workspaces?pagelen=%d&page=%d", pagelen, page)
 	return GetPaginated[Workspace](c, path)
 }
 

@@ -55,6 +55,19 @@ func init() {
 
 	authCmd.Flags().BoolVar(&useOAuth, "oauth", false, "Authenticate via OAuth (opens browser)")
 	authCmd.Flags().StringVarP(&profileName, "profile", "p", "default", "Profile name to save these credentials under")
+
+	// `bbkt auth status` and `bbkt auth logout` are natural things to type;
+	// without aliases they silently fall through to the interactive login.
+	authCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show current authentication status (alias for `bbkt status`)",
+		Run:   func(cmd *cobra.Command, args []string) { runStatus() },
+	})
+	authCmd.AddCommand(&cobra.Command{
+		Use:   "logout",
+		Short: "Log out and remove stored credentials (alias for `bbkt logout`)",
+		Run:   func(cmd *cobra.Command, args []string) { runLogout() },
+	})
 }
 
 func runOAuthLogin(profile string) {
