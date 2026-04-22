@@ -1,15 +1,16 @@
 name: Live API Tests
 
 # Runs the live-tag test tier (go test -tags=live ./...) against real
-# Bitbucket using a sandbox profile. Scheduled nightly and available via
-# manual dispatch. No-ops cleanly if the required secrets are not configured,
-# so this workflow is safe to keep enabled before you set up a sandbox.
+# Bitbucket using an OAuth consumer's client_credentials grant. Scheduled
+# nightly and available via manual dispatch. No-ops cleanly if secrets
+# aren't configured, so this workflow is safe to keep enabled before the
+# consumer is wired up.
 #
-# Required repository secrets (set in Settings > Secrets and variables > Actions):
-#   BBKT_LIVE_WORKSPACE  workspace slug the profile can access (required)
-#   BBKT_LIVE_REPO       repo slug for PR-level tests (optional)
-#   BBKT_API_EMAIL       Atlassian email for the sandbox profile
-#   BBKT_API_TOKEN       Atlassian API token for the sandbox profile
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   BBKT_LIVE_WORKSPACE       workspace slug to exercise (required)
+#   BBKT_OAUTH_CLIENT_ID      OAuth consumer Key (required)
+#   BBKT_OAUTH_CLIENT_SECRET  OAuth consumer Secret (required)
+#   BBKT_LIVE_REPO            repo slug for repo/PR-level tests (optional)
 
 on:
   schedule:
@@ -30,10 +31,10 @@ jobs:
         id: guard
         env:
           BBKT_LIVE_WORKSPACE: ${{ secrets.BBKT_LIVE_WORKSPACE }}
-          BBKT_API_EMAIL: ${{ secrets.BBKT_API_EMAIL }}
-          BBKT_API_TOKEN: ${{ secrets.BBKT_API_TOKEN }}
+          BBKT_OAUTH_CLIENT_ID: ${{ secrets.BBKT_OAUTH_CLIENT_ID }}
+          BBKT_OAUTH_CLIENT_SECRET: ${{ secrets.BBKT_OAUTH_CLIENT_SECRET }}
         run: |
-          if [ -z "$BBKT_LIVE_WORKSPACE" ] || [ -z "$BBKT_API_EMAIL" ] || [ -z "$BBKT_API_TOKEN" ]; then
+          if [ -z "$BBKT_LIVE_WORKSPACE" ] || [ -z "$BBKT_OAUTH_CLIENT_ID" ] || [ -z "$BBKT_OAUTH_CLIENT_SECRET" ]; then
             echo "Live-test secrets not configured — skipping."
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
@@ -47,33 +48,30 @@ jobs:
           go-version: "1.26"
           check-latest: true
 
-      - name: Seed credentials file
+      - name: Exchange consumer creds for access token
+        id: token
         if: steps.guard.outputs.configured == 'true'
         env:
-          BBKT_API_EMAIL: ${{ secrets.BBKT_API_EMAIL }}
-          BBKT_API_TOKEN: ${{ secrets.BBKT_API_TOKEN }}
+          BBKT_OAUTH_CLIENT_ID: ${{ secrets.BBKT_OAUTH_CLIENT_ID }}
+          BBKT_OAUTH_CLIENT_SECRET: ${{ secrets.BBKT_OAUTH_CLIENT_SECRET }}
         run: |
-          mkdir -p "$HOME/.config/bbkt"
-          # Hand-written ProfileStore — avoids the interactive login flow.
-          cat > "$HOME/.config/bbkt/credentials.json" <<EOF
-          {
-            "active_profile": "ci",
-            "profiles": {
-              "ci": {
-                "auth_type": "api_token",
-                "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-                "email": "$BBKT_API_EMAIL",
-                "api_token": "$BBKT_API_TOKEN"
-              }
-            }
-          }
-          EOF
-          chmod 600 "$HOME/.config/bbkt/credentials.json"
+          # client_credentials grant — machine-to-machine, no browser needed.
+          token=$(curl -sS -u "$BBKT_OAUTH_CLIENT_ID:$BBKT_OAUTH_CLIENT_SECRET" \
+            -d grant_type=client_credentials \
+            https://bitbucket.org/site/oauth2/access_token \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          if [ -z "$token" ]; then
+            echo "::error::failed to obtain access token from Bitbucket"
+            exit 1
+          fi
+          # Mask the token in logs and hand it to the next step via env.
+          echo "::add-mask::$token"
+          echo "access_token=$token" >> "$GITHUB_OUTPUT"
 
       - name: Run live tests
         if: steps.guard.outputs.configured == 'true'
         env:
           BBKT_LIVE_WORKSPACE: ${{ secrets.BBKT_LIVE_WORKSPACE }}
           BBKT_LIVE_REPO: ${{ secrets.BBKT_LIVE_REPO }}
-          BBKT_PROFILE: ci
+          BITBUCKET_ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
         run: go test -tags=live -v -timeout 5m ./internal/bitbucket/...

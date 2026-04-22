@@ -30,11 +30,26 @@ func liveClient(t *testing.T) *Client {
 	if os.Getenv("BBKT_LIVE_WORKSPACE") == "" {
 		t.Skip("skipping live test: BBKT_LIVE_WORKSPACE not set")
 	}
+	// Prefer BITBUCKET_ACCESS_TOKEN (how CI threads in a consumer token)
+	// and fall back to the stored profile for local invocation.
+	if tok := os.Getenv("BITBUCKET_ACCESS_TOKEN"); tok != "" {
+		return NewClient("", "", tok)
+	}
+	if u, p := os.Getenv("BITBUCKET_USERNAME"), os.Getenv("BITBUCKET_API_TOKEN"); u != "" && p != "" {
+		return NewClient(u, p, "")
+	}
 	creds, err := LoadCredentials()
 	if err != nil {
 		t.Skipf("skipping live test: no credentials available (%v)", err)
 	}
 	return NewClientFromCredentials(creds)
+}
+
+// isMachineToken is true for client_credentials (consumer) tokens, which are
+// workspace-scoped rather than user-scoped. Several endpoints return empty
+// for these tokens where a user token would return data.
+func isMachineToken() bool {
+	return os.Getenv("BITBUCKET_ACCESS_TOKEN") != ""
 }
 
 func liveWorkspace() string { return os.Getenv("BBKT_LIVE_WORKSPACE") }
@@ -46,6 +61,14 @@ func TestLive_ListWorkspaces(t *testing.T) {
 	result, err := c.ListWorkspaces(ListWorkspacesArgs{Pagelen: 10})
 	if err != nil {
 		t.Fatalf("ListWorkspaces: %v", err)
+	}
+	if isMachineToken() {
+		// client_credentials tokens are consumer-scoped, not user-scoped, so
+		// /user/workspaces returns empty. Just assert the envelope parsed.
+		if result.PageLen == 0 {
+			t.Errorf("paginated envelope looks unparsed: %+v", result)
+		}
+		return
 	}
 	if len(result.Values) == 0 {
 		t.Fatal("authenticated profile has no workspaces — unexpected")
