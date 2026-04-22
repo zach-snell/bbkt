@@ -10,15 +10,15 @@ import (
 
 // captureCreateCommentBody wires up a client whose CreatePRComment POST
 // is intercepted; returns a pointer that holds the raw JSON body after the call.
-func captureCreateCommentBody(t *testing.T) (*Client, *string) {
+func captureCreateCommentBody(t *testing.T) (client *Client, body *string) {
 	t.Helper()
-	var body string
-	c := newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
+	var captured string
+	client = newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		body = string(b)
+		captured = string(b)
 		_, _ = w.Write([]byte(`{"id":1,"content":{"raw":"stub"}}`))
 	})
-	return c, &body
+	return client, &captured
 }
 
 // Regression for PR #1: Inline.From/To lacked omitempty, so a nil pointer

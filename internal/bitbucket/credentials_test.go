@@ -128,7 +128,7 @@ func TestLoadProfileStore_NewFormatRoundTrips(t *testing.T) {
 		ActiveProfile: "work",
 		Profiles: map[string]*Credentials{
 			"work": {
-				AuthType: AuthTypeOAuth,
+				AuthType:    AuthTypeOAuth,
 				AccessToken: "a1", RefreshToken: "r1",
 				ClientID: "cid", ClientSecret: "csec",
 				ExpiresIn: 7200, CreatedAt: time.Now().UTC().Truncate(time.Second),
