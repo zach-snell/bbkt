@@ -2,6 +2,7 @@ package bitbucket
 
 import (
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -115,6 +116,73 @@ func TestGet_403ErrorMentionsScopes(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "scope") {
 		t.Errorf("403 error should mention scopes, got: %v", err)
+	}
+}
+
+// 401 with WWW-Authenticate: BitbucketCustom and no X-Accepted-OAuth-Scopes
+// is the fingerprint of a classic (unscoped) Atlassian API token being
+// rejected by Bitbucket's BitbucketCustom auth layer. Scopes() should detect
+// this and produce a message that points users at the "Create API token
+// with scopes" button — not the misleading "X-OAuth-Scopes header missing"
+// error we used to emit.
+func TestScopes_ClassicTokenFingerprintProducesActionableError(t *testing.T) {
+	c := newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", "BitbucketCustom realm=Bitbucket.org HTTP")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"message":"Token is invalid, expired, or not supported for this endpoint."}}`))
+	})
+
+	_, err := c.Scopes()
+	if err == nil {
+		t.Fatal("expected error for classic-token fingerprint")
+	}
+	msg := err.Error()
+	for _, want := range []string{"Create API token with scopes", "id.atlassian.com", "scoped"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("Scopes() error should mention %q, got: %s", want, msg)
+		}
+	}
+}
+
+// A scoped token that simply lacks read:account on /user (403 with
+// X-OAuth-Scopes populated) is the existing happy-degraded path: Scopes()
+// returns the parsed scope list, no error.
+func TestScopes_403WithScopesHeaderIsSuccess(t *testing.T) {
+	c := newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Oauth-Scopes", "read:repository:bitbucket, read:workspace:bitbucket")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":{"message":"missing read:account"}}`))
+	})
+
+	scopes, err := c.Scopes()
+	if err != nil {
+		t.Fatalf("Scopes() should succeed when X-Oauth-Scopes is populated, got: %v", err)
+	}
+	if len(scopes) != 2 {
+		t.Errorf("expected 2 scopes, got %v", scopes)
+	}
+}
+
+// AuthError must be reachable via errors.As so callers can fingerprint
+// failures programmatically (e.g. the login flow's switch on
+// IsClassicTokenRejection).
+func TestAuthError_ReachableViaErrorsAs(t *testing.T) {
+	c := newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", "BitbucketCustom realm=Bitbucket.org HTTP")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"nope"}}`))
+	})
+
+	_, err := c.Get("/foo")
+	if err == nil {
+		t.Fatal("expected 401 to return an error")
+	}
+	var authErr *AuthError
+	if !errors.As(err, &authErr) {
+		t.Fatalf("error should unwrap to *AuthError, got %T: %v", err, err)
+	}
+	if !authErr.IsClassicTokenRejection() {
+		t.Errorf("IsClassicTokenRejection should be true for BitbucketCustom 401 with no X-Accepted-OAuth-Scopes")
 	}
 }
 

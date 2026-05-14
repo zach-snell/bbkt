@@ -3,6 +3,7 @@ package bitbucket
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -252,13 +253,16 @@ func APITokenLogin(profileName string) error {
 	fmt.Println("Create an API Token at:")
 	fmt.Println("  https://id.atlassian.com/manage-profile/security/api-tokens")
 	fmt.Println()
-	fmt.Println("Note: This replaces the deprecated Bitbucket App Passwords system.")
+	fmt.Println("IMPORTANT: Use the \"Create API token with scopes\" button (NOT the")
+	fmt.Println("plain \"Create API token\" button). Bitbucket Cloud REST API requires")
+	fmt.Println("scoped tokens since Sep 2025 — unscoped tokens authenticate to")
+	fmt.Println("Atlassian but are rejected by Bitbucket's auth layer.")
 	fmt.Println()
 	fmt.Println("Recommended Scopes:")
-	fmt.Println("  read:workspace, read:account, read:user, read:repository:bitbucket,")
-	fmt.Println("  write:repository:bitbucket, read:pullrequest:bitbucket,")
-	fmt.Println("  write:pullrequest:bitbucket, read:pipeline:bitbucket,")
-	fmt.Println("  write:pipeline:bitbucket")
+	fmt.Println("  read:account, read:user:bitbucket, read:workspace:bitbucket,")
+	fmt.Println("  read:repository:bitbucket, write:repository:bitbucket,")
+	fmt.Println("  read:pullrequest:bitbucket, write:pullrequest:bitbucket,")
+	fmt.Println("  read:pipeline:bitbucket, write:pipeline:bitbucket")
 	fmt.Println()
 	fmt.Println("Tools are dynamically disabled if your token omits specific scopes.")
 	fmt.Println("To explicitly deny the MCP server access to tools despite having full scopes, use:")
@@ -290,10 +294,16 @@ func APITokenLogin(profileName string) error {
 	client := NewClient(email, token, "")
 	userData, scopesStr, err := client.GetWithScopes("/user")
 	if err != nil {
-		if strings.Contains(err.Error(), "403 Forbidden") {
-			fmt.Println("\nToken verified successfully (403 Forbidden on /user means token is valid but lacks 'account' scopes).")
-		} else {
-			return fmt.Errorf("credential verification failed: %w\n\nCheck that your email and API Token are correct", err)
+		var authErr *AuthError
+		switch {
+		case errors.As(err, &authErr) && authErr.IsClassicTokenRejection():
+			return fmt.Errorf("%s\n\n(underlying error: %w)", classicTokenHelp, err)
+		case errors.As(err, &authErr) && authErr.StatusCode == 403:
+			// 403 with X-OAuth-Scopes still populates scopesStr — proceed with
+			// the scopes we got, just skip the user-name lookup.
+			fmt.Println("\nToken verified (403 on /user — token has Bitbucket scopes but lacks read:account; user display name unavailable).")
+		default:
+			return fmt.Errorf("credential verification failed: %s\n\n(underlying error: %w)\n\nCheck that your email and API Token are correct", describeAuthFailure(err), err)
 		}
 	}
 

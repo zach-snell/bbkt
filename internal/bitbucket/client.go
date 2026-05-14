@@ -3,6 +3,7 @@ package bitbucket
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -170,7 +171,7 @@ func (c *Client) Get(path string) ([]byte, error) {
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, parseAPIError(resp.StatusCode, data)
+		return nil, parseAuthError(resp, data)
 	}
 
 	return data, nil
@@ -190,7 +191,7 @@ func (c *Client) GetWithScopes(path string) (body []byte, scopes string, err err
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, resp.Header.Get("X-Oauth-Scopes"), parseAPIError(resp.StatusCode, data)
+		return nil, resp.Header.Get("X-Oauth-Scopes"), parseAuthError(resp, data)
 	}
 
 	return data, resp.Header.Get("X-Oauth-Scopes"), nil
@@ -212,17 +213,21 @@ func (c *Client) Scopes() ([]string, error) {
 	}
 
 	// /user returns the X-OAuth-Scopes header and works for both OAuth and API
-	// token auth. The previous code tried /workspace (singular) first, which
-	// has always 404'd — no such endpoint exists.
-	_, scopesStr, _ := c.GetWithScopes("/user")
+	// token auth. A 403 here is fine — the header still populates, so a token
+	// with Bitbucket scopes but no read:account succeeds.
+	_, scopesStr, err := c.GetWithScopes("/user")
 
-	if scopesStr == "" {
-		return nil, fmt.Errorf("failed to reliably fetch token scopes: API did not return X-OAuth-Scopes header")
+	// Header populated → success regardless of any non-2xx status the call returned.
+	if scopesStr != "" {
+		c.apiTokenScopes = parseScopesString(scopesStr)
+		c.scopesFetched = true
+		return c.apiTokenScopes, nil
 	}
 
-	c.apiTokenScopes = parseScopesString(scopesStr)
-	c.scopesFetched = true
-	return c.apiTokenScopes, nil
+	if err != nil {
+		return nil, fmt.Errorf("%s\n\n(underlying error: %w)", describeAuthFailure(err), err)
+	}
+	return nil, fmt.Errorf("failed to reliably fetch token scopes: API did not return X-OAuth-Scopes header")
 }
 
 func parseScopesString(s string) []string {
@@ -253,7 +258,7 @@ func (c *Client) GetRaw(path string) (data []byte, contentType string, err error
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, "", parseAPIError(resp.StatusCode, d)
+		return nil, "", parseAuthError(resp, d)
 	}
 
 	return d, resp.Header.Get("Content-Type"), nil
@@ -377,7 +382,7 @@ func (c *Client) Delete(path string) error {
 
 	if resp.StatusCode >= 400 {
 		data, _ := io.ReadAll(resp.Body)
-		return parseAPIError(resp.StatusCode, data)
+		return parseAuthError(resp, data)
 	}
 
 	return nil
@@ -430,7 +435,101 @@ func QueryEscape(s string) string {
 
 func parseAPIError(statusCode int, body []byte) error {
 	if statusCode == http.StatusForbidden {
-		return fmt.Errorf("403 Forbidden: Permission denied. Ensure your Bitbucket App Password has the required scopes for this operation. Additional details: %s", string(body))
+		return fmt.Errorf("403 Forbidden: Permission denied. Ensure your API token has the required scopes for this operation. Additional details: %s", string(body))
 	}
 	return fmt.Errorf("API error %d: %s", statusCode, string(body))
+}
+
+// AuthError captures the diagnostic signature of a 401/403 from Bitbucket so
+// callers can distinguish "classic unscoped Atlassian token rejected by
+// policy" from "scoped token missing required scope" — both surface as 401
+// at the network layer but differ in headers.
+//
+// Fingerprint guide:
+//   - 401, WWW-Authenticate: BitbucketCustom, no X-Accepted-OAuth-Scopes
+//     → IsClassicTokenRejection. Most common cause: classic Atlassian API
+//     token (the unscoped "Create API token" button at id.atlassian.com).
+//     Bitbucket REST requires scoped tokens since Sep 2025 phase-2 of
+//     app-password deprecation. Same shape also fires for revoked tokens
+//     and email/owner mismatch — so phrase as "most likely cause".
+//   - 401/403, X-Accepted-OAuth-Scopes populated → scoped token reached the
+//     OAuth2/scope-evaluation layer but is missing the listed scope.
+type AuthError struct {
+	StatusCode          int
+	WWWAuthenticate     string
+	AcceptedOAuthScopes string
+	OAuthScopes         string
+	Body                string
+}
+
+func (e *AuthError) Error() string {
+	if e.StatusCode == http.StatusForbidden {
+		return fmt.Sprintf("403 Forbidden: Permission denied. Ensure your API token has the required scopes for this operation. Additional details: %s", e.Body)
+	}
+	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Body)
+}
+
+// IsClassicTokenRejection reports whether the response shape matches a
+// classic (unscoped) Atlassian API token being rejected by Bitbucket's
+// BitbucketCustom auth layer. The signature also covers revoked tokens and
+// wrong-email pairings, so present this to users as the leading hypothesis,
+// not a certainty.
+func (e *AuthError) IsClassicTokenRejection() bool {
+	return e.StatusCode == http.StatusUnauthorized &&
+		strings.Contains(e.WWWAuthenticate, "BitbucketCustom") &&
+		e.AcceptedOAuthScopes == ""
+}
+
+// parseAuthError returns an *AuthError for 401/403 (preserving response
+// headers needed for fingerprinting) and falls back to parseAPIError for
+// other status codes.
+func parseAuthError(resp *http.Response, body []byte) error {
+	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+		return parseAPIError(resp.StatusCode, body)
+	}
+	return &AuthError{
+		StatusCode:          resp.StatusCode,
+		WWWAuthenticate:     resp.Header.Get("WWW-Authenticate"),
+		AcceptedOAuthScopes: resp.Header.Get("X-Accepted-Oauth-Scopes"),
+		OAuthScopes:         resp.Header.Get("X-Oauth-Scopes"),
+		Body:                string(body),
+	}
+}
+
+// classicTokenHelp is the canonical user-facing explanation for the
+// classic-token-rejection fingerprint. Shared between login flow and
+// runtime scope introspection so we phrase it the same way everywhere.
+const classicTokenHelp = `Bitbucket rejected this token.
+
+Most likely cause: this is a *classic* Atlassian API token (created via
+the "Create API token" button at id.atlassian.com — no scopes selected).
+Bitbucket Cloud REST API requires scoped tokens since Sep 2025. Re-mint
+via "Create API token with scopes" and select at minimum:
+  read:account, read:workspace:bitbucket, read:repository:bitbucket
+For full read/write coverage also include:
+  write:repository:bitbucket, read:pullrequest:bitbucket,
+  write:pullrequest:bitbucket, read:pipeline:bitbucket,
+  write:pipeline:bitbucket
+
+(Classic tokens still work for Jira/Confluence — that's why the
+unscoped button is still in the Atlassian UI.)
+
+Other possible causes: token revoked or expired, or email does not
+match the Atlassian account that owns the token.`
+
+// describeAuthFailure returns a user-friendly explanation for an auth
+// failure, branching on AuthError fingerprint. Returns the original error
+// string for non-AuthError inputs.
+func describeAuthFailure(err error) string {
+	var authErr *AuthError
+	if !errors.As(err, &authErr) {
+		return err.Error()
+	}
+	if authErr.IsClassicTokenRejection() {
+		return classicTokenHelp
+	}
+	if authErr.AcceptedOAuthScopes != "" {
+		return fmt.Sprintf("Token is missing required scope(s): %s. Re-mint the token at id.atlassian.com with the listed scope(s) added.", authErr.AcceptedOAuthScopes)
+	}
+	return authErr.Error()
 }
