@@ -84,7 +84,7 @@ jobs:
         run: CGO_ENABLED=0 go build -o bbkt ./cmd/bbkt
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bbkt-linux
           path: bbkt
@@ -127,7 +127,7 @@ jobs:
           go build -o bbkt-${{ matrix.goos }}-${{ matrix.goarch }}${ext} ./cmd/bbkt
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bbkt-${{ matrix.goos }}-${{ matrix.goarch }}
           path: bbkt-*
