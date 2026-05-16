@@ -5,11 +5,22 @@ description: Complete reference for all bbkt Model Context Protocol tools.
 
 The `bbkt` MCP server exposes 9 core, multiplexed tools. Every tool relies on an `action` enum property to select discrete API operations.
 
+## Transports
+
+`bbkt mcp` supports two transports:
+
+- **Stdio (default)** — `bbkt mcp`. Use for local MCP clients (Claude Desktop, Cursor, Zed).
+- **HTTP Streamable** — `bbkt mcp --port <n>`. Use for remote/network clients (SSE-based).
+
 ## Security & Introspection
 
-**Token Introspection:** The `bbkt` server dynamically evaluates the native `X-OAuth-Scopes` HTTP header returned by the Atlassian API during startup. If your App Password or API Token lacks a required scope (such as `write:pipeline`), `bbkt` will completely exclude standard write operations (like `trigger`, `stop`) from the LLM prompt context to prevent hallucinated operations.
+**Token introspection:** At startup the server calls Bitbucket's `/user` endpoint and reads the `X-OAuth-Scopes` response header to discover the granted scopes of the credential in use (scoped Atlassian API token or OAuth bearer). Tools whose required scope is missing are **silently dropped** before the MCP catalog is published, so the AI agent never sees write tools it would fail to call.
 
-**Explicit Denial:** You can forcefully deny the LLM access to any individual tool (e.g., `delete_repository`) via the `BITBUCKET_DISABLED_TOOLS` environment variable.
+**Explicit denial:** You can forcefully deny the LLM access to any individual tool (e.g., `manage_repositories`) via the `BITBUCKET_DISABLED_TOOLS` environment variable (comma-separated).
+
+```bash
+export BITBUCKET_DISABLED_TOOLS="manage_repositories,manage_pipelines"
+```
 
 ## Multiplexed Tools
 
@@ -20,37 +31,45 @@ Get and list Bitbucket workspaces you have access to.
 ### `manage_repositories`
 Manage repositories across your workspaces.
 - **Actions:** `list`, `get`, `create`, `delete`
-- **Optional Params:** `role`, `language`, `is_private`, `project_key`
+- **Optional params:** `role`, `language`, `is_private`, `project_key`
+- **Required scope:** `repository`
 
 ### `manage_refs`
 Interact with repository branches and tags.
 - **Actions:** `list-branches`, `create-branch`, `delete-branch`, `list-tags`, `create-tag`
-- **Required Params:** `name`, `target` (for creations)
+- **Required params:** `name`, `target` (for creations)
+- **Required scope:** `repository`
 
 ### `manage_commits`
 Explore commit history, diffs, and diffstats.
 - **Actions:** `list`, `get`, `diff`, `diffstat`
-- **Optional Params:** `path` (filter by directory)
+- **Optional params:** `path` (filter by directory)
+- **Required scope:** `repository`
 
 ### `manage_source`
 Interact with source code files and directory graphs directly through the Bitbucket API, bypassing local Git clones.
 - **Actions:** `read_file`, `list_directory`, `get_history`, `search`, `write_file`, `delete_file`
-- **Required Params:** `path`, `content` (for writing)
+- **Required params:** `path`, `content` (for writing)
+- **Required scope:** `repository`
 
 ### `manage_pull_requests`
 End-to-end pull request management integration.
 - **Actions:** `list`, `get`, `create`, `update`, `merge`, `approve`, `unapprove`, `decline`, `get-diff`, `get-diffstat`, `get-commits`
-- **Optional Params:** `source_branch`, `destination_branch`, `merge_strategy`, `draft` 
+- **Optional params:** `source_branch`, `destination_branch`, `merge_strategy`, `draft`
+- **Required scope:** `pullrequest`
 
 ### `manage_pr_comments`
 Interact directly with your team inside active pull requests.
 - **Actions:** `list`, `create`, `update`, `delete`, `resolve`, `unresolve`
-- **Optional Params:** `line_from`, `line_to`, `file_path` (for inline comments)
+- **Optional params:** `line_from`, `line_to`, `file_path` (for inline comments)
+- **Required scope:** `pullrequest`
 
 ### `manage_pipelines`
 Trigger and monitor standard Bitbucket pipelines integration tests and deployments.
 - **Actions:** `list`, `get`, `trigger`, `stop`, `list-steps`, `get-step-log`
+- **Required scope:** `pipeline`
 
 ### `manage_issues`
 Interact with the repository Issue Tracker.
 - **Actions:** `list`, `get`, `create`, `update`
+- **Required scope:** `issue`

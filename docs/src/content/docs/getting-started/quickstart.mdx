@@ -9,8 +9,8 @@ This guide will help you set up `bbkt` and start using it with your AI assistant
 
 ## Prerequisites
 
-- An Atlassian API Token (or App Password)
-- An MCP-compatible AI client (Claude Desktop, Cursor, etc.)
+- A scoped Atlassian API token (or an OAuth consumer). See [Configuration](/bbkt/getting-started/configuration) for the scoped-vs-classic gotcha.
+- An MCP-compatible AI client (Claude Desktop, Cursor, etc.) if you want to use the MCP server.
 
 ## Setup
 
@@ -19,44 +19,49 @@ This guide will help you set up `bbkt` and start using it with your AI assistant
 1. **Install bbkt**
 
    <Tabs>
-     <TabItem label="Installation Script">
+     <TabItem label="Install Script (Recommended)">
+       ```bash
+       curl -sSL https://raw.githubusercontent.com/zach-snell/bbkt/main/install.sh | bash
+       # or, no sudo:
+       curl -sSL https://raw.githubusercontent.com/zach-snell/bbkt/main/install.sh | bash -s -- --user
+       ```
+     </TabItem>
+     <TabItem label="From Source">
        ```bash
        git clone https://github.com/zach-snell/bbkt.git
        cd bbkt
-       ./install.sh
-       ```
-     </TabItem>
-     <TabItem label="Go">
-       ```bash
-       go install github.com/zach-snell/bbkt@latest
+       go build -o bbkt ./cmd/bbkt
        ```
      </TabItem>
    </Tabs>
 
-2. **Configure your MCP client**
+2. **Authenticate**
 
-   Add `bbkt` to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+   ```bash
+   bbkt auth          # API token (default)
+   bbkt status        # verify
+   ```
+
+3. **Configure your MCP client**
+
+   Add `bbkt` to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`). Because credentials are stored on disk by step 2, no env block is needed:
 
    ```json
    {
      "mcpServers": {
        "bitbucket": {
          "command": "bbkt",
-         "args": ["mcp"],
-         "env": {
-           "BITBUCKET_USERNAME": "your-username",
-           "BITBUCKET_API_TOKEN": "your-api-token"
-         }
+         "args": ["mcp"]
        }
      }
    }
    ```
 
-3. **Restart your AI client**
+4. **Restart your AI client**
 
    Close and reopen Claude Desktop (or your MCP client) to load the new server.
 
-4. **Start chatting!**
+5. **Start chatting!**
 
    You can now ask your AI assistant to interact with your Bitbucket repositories.
 
@@ -86,7 +91,7 @@ Once configured, try asking your AI assistant:
 
 ## Example Conversation
 
-Here's a typical interaction using our new, highly-efficient multiplexed tools:
+Here's a typical interaction using the multiplexed tools:
 
 **You**: "Create a new branch called 'feature/new-login' in the 'auth-service' repo"
 
@@ -104,5 +109,5 @@ Here's a typical interaction using our new, highly-efficient multiplexed tools:
 
 ## Next Steps
 
-- Explore the Configuration guide to see how to authenticate using API Tokens or OAuth.
-- Learn about the comprehensive 9 multiplexed MCP tools available.
+- [Configuration](/bbkt/getting-started/configuration) — API tokens, OAuth, multi-profile, env vars.
+- [MCP Tools Reference](/bbkt/reference/mcp/) — the nine multiplexed MCP tools.

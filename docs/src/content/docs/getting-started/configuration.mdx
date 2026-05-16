@@ -1,36 +1,79 @@
 ---
 title: Configuration
-description: How to connect bbkt to your MCP client.
+description: How to authenticate bbkt and connect it to your MCP client.
 ---
 
-Once downloaded, you need to register the binary with an MCP-compliant application like Claude Desktop, Cursor, or Zed.
+`bbkt` reads credentials from `~/.config/bbkt/credentials.json` (multi-profile, mode 0600) or directly from environment variables.
 
-## Client Registration
+## Authentication
 
-Modify your client's MCP configuration settings to point local invocations to the absolute path of the executable.
+The recommended path is to run `bbkt auth` once, which prompts for an Atlassian email and API token and saves them under a named profile.
+
+```bash
+bbkt auth                  # save to "default" profile
+bbkt auth --profile work   # save to a named profile
+bbkt auth --oauth          # OAuth 2.0 browser flow (requires consumer)
+bbkt status                # confirm what's wired up
+```
+
+:::caution[Use scoped tokens]
+Bitbucket Cloud REST API requires **scoped** Atlassian API tokens since the September 2025 phase-2 of app-password deprecation. At [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens), use the **"Create API token with scopes"** button — not the plain "Create API token" button. Classic (unscoped) tokens authenticate to Atlassian but Bitbucket rejects them, and bbkt detects this and points you here.
+:::
+
+Recommended scopes for full read/write coverage:
+
+```
+read:account
+read:user:bitbucket          read:workspace:bitbucket
+read:repository:bitbucket    write:repository:bitbucket
+read:pullrequest:bitbucket   write:pullrequest:bitbucket
+read:pipeline:bitbucket      write:pipeline:bitbucket
+```
+
+## Client Registration (MCP)
+
+Modify your MCP client config to point at the absolute path of the executable. The MCP server reads credentials from the stored profile by default; no env block is required if you've run `bbkt auth`:
 
 ```json
 {
   "mcpServers": {
     "bitbucket": {
       "command": "/absolute/path/to/bbkt",
-      "env": {
-        "BITBUCKET_USERNAME": "your-username",
-        "BITBUCKET_API_TOKEN": "your-api-token"
-      }
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-## Authentication Environments
+To select a non-default profile per client (e.g. a "work" config in one MCP host, "personal" in another):
 
-The server provides two ways to authenticate:
+```json
+{
+  "mcpServers": {
+    "bitbucket": {
+      "command": "/absolute/path/to/bbkt",
+      "args": ["mcp"],
+      "env": { "BBKT_PROFILE": "work" }
+    }
+  }
+}
+```
 
-### 1. API Tokens (Headless)
-Define `BITBUCKET_USERNAME` and `BITBUCKET_API_TOKEN` in the `env` block as presented above. This works best for CI/CD environments or stable headless integrations.
+## Environment Variables
 
-### 2. Interactive OAuth 2.0 (Desktop)
-If you omit the credentials, `bbkt` will dynamically spawn a localized HTTP server and open an interactive authorization window via `https://bitbucket.org/site/oauth2/authorize` automatically. It will trap the callback to validate connection state. 
+Setting these bypasses the stored profile (useful for CI/CD and headless setups).
 
-If running an OAuth flow, ensure you configure `BITBUCKET_CLIENT_ID` and `BITBUCKET_CLIENT_SECRET` in the `env` if using a custom OAuth registration.
+| Variable | Purpose |
+|---|---|
+| `BITBUCKET_USERNAME` | Atlassian email (despite the legacy name) — used with `BITBUCKET_API_TOKEN` |
+| `BITBUCKET_API_TOKEN` | Scoped Atlassian API token |
+| `BITBUCKET_ACCESS_TOKEN` | OAuth 2.0 bearer token (overrides stored profile) |
+| `BITBUCKET_OAUTH_CLIENT_ID` | OAuth consumer Key (only used by `bbkt auth --oauth`) |
+| `BITBUCKET_OAUTH_CLIENT_SECRET` | OAuth consumer Secret (only used by `bbkt auth --oauth`) |
+| `BBKT_PROFILE` | Profile name override (one-shot) |
+| `BBKT_OAUTH_CALLBACK_PORT` | Local callback port for OAuth flow (default `8976`) |
+| `BITBUCKET_DISABLED_TOOLS` | Comma-separated MCP tool names to disable |
+
+## Multi-Profile Selection
+
+When `BBKT_PROFILE` is unset and `--profile` isn't passed, `bbkt` tries to auto-select a profile whose `accessible_workspaces` matches your git config email; otherwise it falls back to the `active_profile` field of `credentials.json`. Run `bbkt profile refresh` periodically so the workspace cache stays current.

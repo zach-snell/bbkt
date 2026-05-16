@@ -9,9 +9,10 @@ description: A fast, lightweight CLI and MCP server for Bitbucket in Go.
 
 Instead of relying on web scraping or manual context-dropping, this tool directly interfaces with the Bitbucket REST API v2 to expose repository context to any terminal session or MCP-compliant client.
 
-- **Fast & Lightweight:** Built in Go without heavy runtime dependencies.
-- **Deep Integration:** Create pull requests, merge code, approve reviews, and resolve inline comments cleanly.
-- **Self-Contained:** Handles standard App Password configuration or dynamically processes interactive OAuth 2.0 flows on local workstations.
+- **Fast & lightweight:** Built in Go without heavy runtime dependencies.
+- **Deep integration:** Create pull requests, merge code, approve reviews, and resolve inline comments cleanly.
+- **Multi-account:** Built-in profile system stores credentials for personal vs work accounts side-by-side; auto-selects the right one based on the workspace of your current git clone.
+- **Self-contained auth:** Scoped Atlassian API tokens or interactive OAuth 2.0 flows on local workstations; classic (unscoped) tokens are detected and rejected with an actionable message.
 
 ## Next Steps
 

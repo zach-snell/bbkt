@@ -1,138 +1,126 @@
 ---
 title: CLI Reference
-description: Complete reference for all bbkt standard CLI commands.
+description: Complete reference for all bbkt CLI commands.
 ---
 
 The `bbkt` CLI provides an interactive, terminal-native experience for managing Bitbucket workspaces, repositories, pipelines, issues, and pull requests.
 
-## Core Commands
+Global flags (available on every command):
+
+- `--profile <name>` / `-p <name>` — credential profile to use (overrides active profile and `BBKT_PROFILE`)
+- `--json` — emit raw JSON instead of formatted tables
+
+Inside a Bitbucket git clone, most commands infer workspace and repo from `.git/config`, so positional `[workspace] [repo-slug]` args can be omitted.
+
+## Authentication & Profiles
+
+### `bbkt auth`
+
+Set up credentials. Defaults to an Atlassian API token (Basic auth); use `--oauth` for the browser flow.
+
+```bash
+bbkt auth                          # API token, "default" profile
+bbkt auth --profile work           # API token, "work" profile
+bbkt auth --oauth                  # OAuth 2.0 browser flow
+```
+
+### `bbkt status`
+
+Show the active profile, auth type, token redaction, and scopes.
+
+### `bbkt logout`
+
+Remove stored credentials.
 
 ### `bbkt profile`
 
-Manage local authentication profiles and APIs tokens. 
+Manage credential profiles for multiple accounts.
 
 ```bash
-# List all active credentials and their scopes
-bbkt profile list
-
-# Delete a profile from the local keychain
-bbkt profile delete <name>
-
-# Force refresh the cached accessible workspaces list
-bbkt profile refresh
+bbkt profile                       # list profiles (active is marked)
+bbkt profile list                  # same
+bbkt profile use <name>            # set active profile
+bbkt profile refresh               # refresh cached workspace list per profile
+bbkt --profile work prs list       # one-shot override
 ```
+
+## MCP Server
+
+### `bbkt mcp`
+
+Start the MCP server. Stdio by default; pass `--port <n>` for the HTTP Streamable transport.
+
+```bash
+bbkt mcp                           # stdio
+bbkt mcp --port 8080               # HTTP Streamable on :8080
+bbkt mcp --no-auth                 # no credentials (tools return auth-required)
+```
+
+## Core Commands
 
 ### `bbkt workspaces`
 
-Interact with Bitbucket Workspaces.
-
 ```bash
-# List all accessible workspaces
-bbkt workspaces list
-
-# Get details about a specific workspace
-bbkt workspaces get [workspace_slug]
+bbkt workspaces list                                # all accessible workspaces
+bbkt workspaces get <workspace>                     # specific workspace
 ```
 
 ### `bbkt repos`
 
-Manage Git repositories.
-
 ```bash
-# List all repositories in a workspace
-bbkt repos list [workspace_slug]
-
-# Get details for a specific repository
-bbkt repos get [workspace_slug] [repo_slug]
-
-# Create a new repository
-bbkt repos create [workspace_slug]
-
-# Delete a repository
-bbkt repos delete [workspace_slug] [repo_slug]
+bbkt repos list [workspace]                         # repos in a workspace
+bbkt repos get [workspace] [repo-slug]
+bbkt repos create [workspace] [repo-slug] [--description ...] [--private]
+bbkt repos delete [workspace] [repo-slug]
 ```
 
 ### `bbkt prs`
 
-Manage Pull Requests.
-
 ```bash
-# List open pull requests
-bbkt prs list [workspace_slug] [repo_slug]
-
-# Get a specific pull request
-bbkt prs get [workspace_slug] [repo_slug] [pr_id]
-
-# Create a new pull request (prompts for title/branch)
-bbkt prs create [workspace_slug] [repo_slug]
-
-# Approve or decline a pull request
-bbkt prs approve [workspace_slug] [repo_slug] [pr_id]
-bbkt prs decline [workspace_slug] [repo_slug] [pr_id]
-
-# Merge a pull request
-bbkt prs merge [workspace_slug] [repo_slug] [pr_id]
+bbkt prs list [workspace] [repo-slug]               # --state OPEN|MERGED|SUPERSEDED|DECLINED
+bbkt prs get [workspace] [repo-slug] <pr-id>
+bbkt prs create [workspace] [repo-slug] --title <t> --source <branch> [--destination <branch>]
+bbkt prs merge [workspace] [repo-slug] <pr-id> [--strategy merge_commit|squash|fast_forward]
+bbkt prs approve [workspace] [repo-slug] <pr-id>
+bbkt prs decline [workspace] [repo-slug] <pr-id>
 ```
 
 #### `bbkt prs comments`
 
-Manage comments on Pull Requests.
-
 ```bash
-# List comments on a PR
-bbkt prs comments list [workspace_slug] [repo_slug] [pr_id]
-
-# Add a new comment
-bbkt prs comments add [workspace_slug] [repo_slug] [pr_id]
-
-# Resolve an existing comment thread
-bbkt prs comments resolve [workspace_slug] [repo_slug] [pr_id] [comment_id]
+bbkt prs comments list [workspace] [repo-slug] <pr-id>
+bbkt prs comments add [workspace] [repo-slug] <pr-id> -m <body> \
+    [--file <path> --to <line> | --from <line>] [--parent <comment-id>]
+bbkt prs comments resolve [workspace] [repo-slug] <pr-id> <comment-id>
 ```
 
 ### `bbkt pipelines`
 
-Trigger and monitor CI/CD pipelines.
-
 ```bash
-# List recent pipeline runs
-bbkt pipelines list [workspace_slug] [repo_slug]
-
-# Trigger a new pipeline run manually
-bbkt pipelines trigger [workspace_slug] [repo_slug]
-
-# Stop a running pipeline
-bbkt pipelines stop [workspace_slug] [repo_slug] [pipeline_uuid]
-
-# Stream live step logs to stdout
-bbkt pipelines logs [workspace_slug] [repo_slug] [pipeline_uuid] [step_uuid]
+bbkt pipelines list [workspace] [repo-slug]         # --status SUCCESSFUL|FAILED|INPROGRESS
+bbkt pipelines get [workspace] [repo-slug] <pipeline-uuid>
+bbkt pipelines trigger [workspace] [repo-slug] --ref-name <branch> [--ref-type branch|tag] [--pattern <custom-name>]
+bbkt pipelines stop [workspace] [repo-slug] <pipeline-uuid>
+bbkt pipelines steps [workspace] [repo-slug] <pipeline-uuid>
+bbkt pipelines log [workspace] [repo-slug] <pipeline-uuid> <step-uuid>
 ```
 
 ### `bbkt issues`
 
-Interact with the repository Issue Tracker.
-
 ```bash
-# List open issues
-bbkt issues list [workspace_slug] [repo_slug]
-
-# Create a new issue
-bbkt issues create [workspace_slug] [repo_slug]
+bbkt issues list [workspace] [repo-slug]            # --kind bug|enhancement|proposal|task
+bbkt issues get [workspace] [repo-slug] <issue-id>
+bbkt issues create [workspace] [repo-slug] --title <t> [--content <md>] [--kind ...] [--priority ...]
+bbkt issues update [workspace] [repo-slug] <issue-id> [--state ...] [--priority ...]
 ```
 
 ### `bbkt source`
 
-Directly interact with remote source code without a local Git clone.
-
 ```bash
-# View file contents
-bbkt source read [workspace_slug] [repo_slug] [filepath]
-
-# Browse repository tree structure
-bbkt source tree [workspace_slug] [repo_slug]
-
-# Search codebase natively
-bbkt source search [workspace_slug] [repo_slug]
-
-# Commit a new file or modification directly
-bbkt source write [workspace_slug] [repo_slug] [filepath]
+bbkt source read [workspace] [repo-slug] <path> [--ref <ref>]
+bbkt source tree [workspace] [repo-slug] [path] [--ref <ref>] [--max-depth <n>]
+bbkt source search [workspace] [repo-slug] <query>      # requires code-search-enabled workspace
+bbkt source history [workspace] [repo-slug] <path>
+bbkt source write [workspace] [repo-slug] <path> --content <text> [-m <msg>] [-b <branch>]
+bbkt source delete [workspace] [repo-slug] <path> [-m <msg>] [-b <branch>]
 ```
