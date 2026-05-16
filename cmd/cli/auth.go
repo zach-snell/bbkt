@@ -11,8 +11,9 @@ import (
 var useOAuth bool
 
 var authCmd = &cobra.Command{
-	Use:   "auth",
-	Short: "Authenticate with Bitbucket Cloud",
+	Use:     "auth",
+	GroupID: groupAuth,
+	Short:   "Authenticate with Bitbucket Cloud",
 	Long: `Set up credentials for accessing Bitbucket Cloud.
 
 By default, prompts for an Atlassian API token (Basic Auth). Create
@@ -32,7 +33,7 @@ can switch with 'bbkt --profile work ...' or 'bbkt profile use work'.`,
 	Example: `  bbkt auth                          # API token, saved to "default" profile
   bbkt auth --profile work           # API token, saved to "work" profile
   bbkt auth --oauth                  # OAuth 2.0 browser flow`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Profile name comes from the persistent --profile flag (root.go);
 		// default to "default" when saving creds so we always write somewhere.
 		profile, _ := cmd.Flags().GetString("profile")
@@ -40,29 +41,31 @@ can switch with 'bbkt --profile work ...' or 'bbkt profile use work'.`,
 			profile = "default"
 		}
 		if useOAuth {
-			runOAuthLogin(profile)
-			return
+			return runOAuthLogin(profile)
 		}
 		if err := bitbucket.APITokenLogin(profile); err != nil {
-			fmt.Fprintf(os.Stderr, "auth failed: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("auth failed: %w", err)
 		}
+		return nil
 	},
 }
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show current authentication status",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:     "status",
+	GroupID: groupAuth,
+	Short:   "Show current authentication status",
+	RunE: func(cmd *cobra.Command, args []string) error {
 		runStatus()
+		return nil
 	},
 }
 
 var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Log out and remove stored credentials",
-	Run: func(cmd *cobra.Command, args []string) {
-		runLogout()
+	Use:     "logout",
+	GroupID: groupAuth,
+	Short:   "Log out and remove stored credentials",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runLogout()
 	},
 }
 
@@ -72,44 +75,48 @@ func init() {
 	RootCmd.AddCommand(logoutCmd)
 
 	authCmd.Flags().BoolVar(&useOAuth, "oauth", false, "Authenticate via OAuth 2.0 (opens browser)")
-	// Note: --profile is inherited from RootCmd as a persistent flag and read in Run.
+	// Note: --profile is inherited from RootCmd as a persistent flag and read in RunE.
 
 	// `bbkt auth status` and `bbkt auth logout` are natural things to type;
 	// without aliases they silently fall through to the interactive login.
 	authCmd.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "Show current authentication status (alias for `bbkt status`)",
-		Run:   func(cmd *cobra.Command, args []string) { runStatus() },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runStatus()
+			return nil
+		},
 	})
 	authCmd.AddCommand(&cobra.Command{
 		Use:   "logout",
 		Short: "Log out and remove stored credentials (alias for `bbkt logout`)",
-		Run:   func(cmd *cobra.Command, args []string) { runLogout() },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runLogout()
+		},
 	})
 }
 
-func runOAuthLogin(profile string) {
+func runOAuthLogin(profile string) error {
 	clientID := os.Getenv("BITBUCKET_OAUTH_CLIENT_ID")
 	clientSecret := os.Getenv("BITBUCKET_OAUTH_CLIENT_SECRET")
 
 	if clientID == "" || clientSecret == "" {
-		fmt.Fprintf(os.Stderr, "OAuth credentials required. Set:\n")
-		fmt.Fprintf(os.Stderr, "  BITBUCKET_OAUTH_CLIENT_ID\n")
-		fmt.Fprintf(os.Stderr, "  BITBUCKET_OAUTH_CLIENT_SECRET\n\n")
+		// Print the long-form setup instructions to stderr — these are
+		// onboarding guidance, not the error itself.
 		fmt.Fprintf(os.Stderr, "Create an OAuth consumer at:\n")
 		fmt.Fprintf(os.Stderr, "  Bitbucket > Workspace Settings > OAuth consumers > Add consumer\n")
 		fmt.Fprintf(os.Stderr, "  Check \"This is a private consumer\" (required for refresh tokens)\n")
 		fmt.Fprintf(os.Stderr, "  Callback URL: http://localhost:%d/callback\n", bitbucket.DefaultOAuthCallbackPort)
 		fmt.Fprintf(os.Stderr, "    (override the port with BBKT_OAUTH_CALLBACK_PORT if %d is in use)\n", bitbucket.DefaultOAuthCallbackPort)
 		fmt.Fprintf(os.Stderr, "  Scopes: repository, repository:write, pullrequest, pullrequest:write,\n")
-		fmt.Fprintf(os.Stderr, "          pipeline, pipeline:write, account\n")
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "          pipeline, pipeline:write, account\n\n")
+		return fmt.Errorf("OAuth credentials required: set BITBUCKET_OAUTH_CLIENT_ID and BITBUCKET_OAUTH_CLIENT_SECRET")
 	}
 
 	if err := bitbucket.OAuthLogin(clientID, clientSecret, profile); err != nil {
-		fmt.Fprintf(os.Stderr, "auth failed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("auth failed: %w", err)
 	}
+	return nil
 }
 
 func runStatus() {
@@ -158,10 +165,10 @@ func runStatus() {
 	}
 }
 
-func runLogout() {
+func runLogout() error {
 	if err := bitbucket.RemoveCredentials(); err != nil {
-		fmt.Fprintf(os.Stderr, "error removing credentials: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("removing credentials: %w", err)
 	}
 	fmt.Println("Logged out. Credentials removed.")
+	return nil
 }

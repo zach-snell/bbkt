@@ -45,6 +45,13 @@ Credentials are stored at ~/.config/bbkt/credentials.json. Use
 			os.Setenv("BBKT_PROFILE", profile)
 		}
 	},
+	// Errors from RunE shouldn't dump the usage wall — cobra's default
+	// is "print error + usage" which is overwhelming for a runtime API
+	// failure. SilenceErrors=true keeps cobra from printing the error
+	// itself, since Execute() already prints it. SilenceUsage=true keeps
+	// the help/usage wall from following.
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -59,4 +66,5 @@ func Execute() {
 func init() {
 	RootCmd.PersistentFlags().Bool("json", false, "Output raw JSON instead of formatted tables")
 	RootCmd.PersistentFlags().StringP("profile", "p", "", "Credential profile to use (overrides active profile / BBKT_PROFILE)")
+	registerGroups()
 }

@@ -147,11 +147,12 @@ func Truncate(s string, maxLen int) string {
 }
 
 // PrintPaginationFooter prints a summary line showing current page info.
+// When hasNext is true, includes a hint to fetch the next page with --page.
 func PrintPaginationFooter(size, page, pageLen int, hasNext bool) {
 	if size > 0 {
 		fmt.Printf("\nShowing page %d (%d items of %d total)", page, pageLen, size)
 		if hasNext {
-			fmt.Print(" — more results available")
+			fmt.Printf(" — pass --page %d for the next page", page+1)
 		}
 		fmt.Println()
 	}

@@ -17,8 +17,9 @@ var port int
 var noAuth bool
 
 var mcpCmd = &cobra.Command{
-	Use:   "mcp",
-	Short: "Start the Bitbucket MCP Server (for Claude Desktop, Cursor, etc.)",
+	Use:     "mcp",
+	GroupID: groupMCP,
+	Short:   "Start the Bitbucket MCP Server (for Claude Desktop, Cursor, etc.)",
 	Long: `Starts the Model Context Protocol (MCP) server for Bitbucket.
 
 By default the server speaks stdio — the right mode for local MCP
@@ -38,8 +39,8 @@ to explicitly disable additional tools.`,
   bbkt mcp --port 8080                  # HTTP Streamable on :8080
   bbkt --profile work mcp               # use the "work" profile
   bbkt mcp --no-auth                    # start without creds (tools return auth-required)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		runServer()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runServer()
 	},
 }
 
@@ -49,7 +50,7 @@ func init() {
 	mcpCmd.Flags().BoolVar(&noAuth, "no-auth", false, "Start server without authentication (tools will return auth-required errors when called)")
 }
 
-func runServer() {
+func runServer() error {
 	var s *mcp.Server
 
 	if noAuth {
@@ -65,20 +66,21 @@ func runServer() {
 		} else {
 			creds, err := bitbucket.LoadCredentials()
 			if err != nil {
+				// Print onboarding hint to stderr as guidance, return the
+				// terse error for cobra to surface.
 				fmt.Fprintf(os.Stderr, "No credentials found. Either:\n")
 				fmt.Fprintf(os.Stderr, "  1. Run: bbkt auth          (API token — recommended)\n")
 				fmt.Fprintf(os.Stderr, "  2. Run: bbkt auth --oauth   (OAuth via browser)\n")
 				fmt.Fprintf(os.Stderr, "  3. Set BITBUCKET_ACCESS_TOKEN env var\n")
-				fmt.Fprintf(os.Stderr, "  4. Set BITBUCKET_USERNAME + BITBUCKET_API_TOKEN env vars\n")
-				os.Exit(1)
+				fmt.Fprintf(os.Stderr, "  4. Set BITBUCKET_USERNAME + BITBUCKET_API_TOKEN env vars\n\n")
+				return fmt.Errorf("no credentials configured")
 			}
 
 			switch {
 			case creds.IsAPIToken() || creds.IsOAuth():
 				s = mcpserver.NewFromCredentials(creds)
 			default:
-				fmt.Fprintf(os.Stderr, "Unknown auth type in stored credentials: %s\n", creds.AuthType)
-				os.Exit(1)
+				return fmt.Errorf("unknown auth type in stored credentials: %s", creds.AuthType)
 			}
 		}
 	}
@@ -96,13 +98,12 @@ func runServer() {
 		}
 
 		if err := srv.ListenAndServe(); err != nil {
-			fmt.Fprintf(os.Stderr, "HTTP server error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("HTTP server error: %w", err)
 		}
-	} else {
-		if err := s.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-			os.Exit(1)
-		}
+		return nil
 	}
+	if err := s.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+		return fmt.Errorf("server error: %w", err)
+	}
+	return nil
 }

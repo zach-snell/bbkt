@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -27,31 +26,31 @@ Alias: comment`,
 }
 
 var prCommentsListCmd = &cobra.Command{
-	Use:   "list [workspace] [repo-slug] [pr-id]",
+	Use:   "list [workspace] [repo-slug] <pr-id>",
 	Short: "List comments on a pull request",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
+		page, pagelen := paginationArgs(cmd)
 		client := getClient()
 		result, err := client.ListPRComments(bitbucket.ListPRCommentsArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			PRID:      prID,
+			Page:      page,
+			Pagelen:   pagelen,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -80,32 +79,26 @@ var prCommentsListCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var prCommentsAddCmd = &cobra.Command{
-	Use:   "add [workspace] [repo-slug] [pr-id]",
+	Use:   "add [workspace] [repo-slug] <pr-id>",
 	Short: "Add a comment to a pull request",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
 		content, _ := cmd.Flags().GetString("content")
-		if content == "" {
-			fmt.Fprintln(os.Stderr, "Error: content is required")
-			os.Exit(1)
-		}
-
 		parentID, _ := cmd.Flags().GetInt("parent")
 		file, _ := cmd.Flags().GetString("file")
 		toCode, _ := cmd.Flags().GetInt("to")
@@ -123,8 +116,7 @@ var prCommentsAddCmd = &cobra.Command{
 			LineFrom:  fromCode,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -138,45 +130,42 @@ var prCommentsAddCmd = &cobra.Command{
 			}
 			KV("Created", FormatTime(result.CreatedOn))
 		})
+		return nil
 	},
 }
 
 var prCommentsResolveCmd = &cobra.Command{
-	Use:   "resolve [workspace] [repo-slug] [pr-id] [comment-id]",
+	Use:   "resolve [workspace] [repo-slug] <pr-id> <comment-id>",
 	Short: "Resolve a comment thread",
 	Args:  cobra.RangeArgs(2, 4),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 2)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
 		commentID, err := strconv.Atoi(trailing[1])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid Comment ID: %s\n", trailing[1])
-			os.Exit(1)
+			return fmt.Errorf("invalid comment ID %q (must be a number)", trailing[1])
 		}
 
 		client := getClient()
-		err = client.ResolvePRComment(bitbucket.CommentActionArgs{
+		if err := client.ResolvePRComment(bitbucket.CommentActionArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			PRID:      prID,
 			CommentID: commentID,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Comment thread %d resolved successfully.\n", commentID)
+		return nil
 	},
 }
 
@@ -185,6 +174,8 @@ func init() {
 	prCommentsCmd.AddCommand(prCommentsListCmd)
 	prCommentsCmd.AddCommand(prCommentsAddCmd)
 	prCommentsCmd.AddCommand(prCommentsResolveCmd)
+
+	addPaginationFlags(prCommentsListCmd)
 
 	prCommentsAddCmd.Flags().StringP("content", "m", "", "Comment body (markdown supported)")
 	prCommentsAddCmd.Flags().Int("parent", 0, "Reply to this comment ID (creates a threaded reply)")

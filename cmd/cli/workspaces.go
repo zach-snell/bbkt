@@ -9,9 +9,10 @@ import (
 )
 
 var workspacesCmd = &cobra.Command{
-	Use:   "workspaces",
-	Short: "List and inspect Bitbucket workspaces you have access to",
-	Long:  "Read-only operations on the workspaces your authenticated user (or token) has access to.",
+	Use:     "workspaces",
+	GroupID: groupData,
+	Short:   "List and inspect Bitbucket workspaces you have access to",
+	Long:    "Read-only operations on the workspaces your authenticated user (or token) has access to.",
 	Example: `  bbkt workspaces list             # all workspaces
   bbkt workspaces get my-team`,
 }
@@ -19,12 +20,15 @@ var workspacesCmd = &cobra.Command{
 var workspacesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List workspaces the authenticated user has access to",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		page, pagelen := paginationArgs(cmd)
 		client := getClient()
-		result, err := client.ListWorkspaces(bitbucket.ListWorkspacesArgs{})
+		result, err := client.ListWorkspaces(bitbucket.ListWorkspacesArgs{
+			Page:    page,
+			Pagelen: pagelen,
+		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -40,21 +44,21 @@ var workspacesListCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var workspacesGetCmd = &cobra.Command{
-	Use:   "get [workspace]",
+	Use:   "get <workspace>",
 	Short: "Get details for a specific workspace",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := getClient()
 		result, err := client.GetWorkspace(bitbucket.GetWorkspaceArgs{
 			Workspace: args[0],
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -63,6 +67,7 @@ var workspacesGetCmd = &cobra.Command{
 			KV("UUID", result.UUID)
 			KV("Visibility", FormatPrivate(result.IsPrivate))
 		})
+		return nil
 	},
 }
 
@@ -70,9 +75,13 @@ func init() {
 	RootCmd.AddCommand(workspacesCmd)
 	workspacesCmd.AddCommand(workspacesListCmd)
 	workspacesCmd.AddCommand(workspacesGetCmd)
+	addPaginationFlags(workspacesListCmd)
 }
 
-// getClient is a helper to instantiate the core Bitbucket API client
+// getClient is a helper to instantiate the core Bitbucket API client.
+// Exits if no credentials are configured — this is a setup error, not a
+// runtime API error, and the actionable message is more useful than
+// propagating it through RunE.
 func getClient() *bitbucket.Client {
 	username := os.Getenv("BITBUCKET_USERNAME")
 	password := os.Getenv("BITBUCKET_API_TOKEN")

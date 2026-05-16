@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/zach-snell/bbkt/internal/bitbucket"
@@ -12,6 +11,7 @@ import (
 var sourceCmd = &cobra.Command{
 	Use:     "source",
 	Aliases: []string{"src"},
+	GroupID: groupData,
 	Short:   "Read, search, write, and delete files in a repository",
 	Long: `Source operations against a Bitbucket repository: read raw file
 contents, list directories, search code, view file history, write
@@ -29,14 +29,13 @@ Alias: src`,
 }
 
 var sourceReadCmd = &cobra.Command{
-	Use:   "read [workspace] [repo-slug] [path]",
+	Use:   "read [workspace] [repo-slug] <path>",
 	Short: "Get the raw content of a file",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		ref, _ := cmd.Flags().GetString("ref")
@@ -49,20 +48,20 @@ var sourceReadCmd = &cobra.Command{
 			Ref:       ref,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		// Print raw content directly
 		fmt.Print(string(content))
+		return nil
 	},
 }
 
 var sourceTreeCmd = &cobra.Command{
 	Use:   "tree [workspace] [repo-slug] [path]",
 	Short: "List files and directories",
-	Args:  cobra.RangeArgs(0, 3), // Path is optional, workspace/repo are optional
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.RangeArgs(0, 3),
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Because path is optional, if len(args) == 0: git, path=""
 		// If len(args) == 1: git, path=args[0]
 		// If len(args) == 2: args[0]=ws, args[1]=rs, path=""
@@ -73,8 +72,7 @@ var sourceTreeCmd = &cobra.Command{
 		if len(args) == 0 || len(args) == 1 {
 			ws, rs, err := bitbucket.GetLocalRepoInfo()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return err
 			}
 			workspace = ws
 			repoSlug = rs
@@ -101,8 +99,7 @@ var sourceTreeCmd = &cobra.Command{
 			MaxDepth:  maxDepth,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -126,18 +123,18 @@ var sourceTreeCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var sourceHistoryCmd = &cobra.Command{
-	Use:   "history [workspace] [repo-slug] [path]",
+	Use:   "history [workspace] [repo-slug] <path>",
 	Short: "Get the commit history for a specific file",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		ref, _ := cmd.Flags().GetString("ref")
@@ -150,8 +147,7 @@ var sourceHistoryCmd = &cobra.Command{
 			Ref:       ref,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -191,18 +187,18 @@ var sourceHistoryCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var sourceSearchCmd = &cobra.Command{
-	Use:   "search [workspace] [repo-slug] [query]",
-	Short: "Search for code in a repository",
+	Use:   "search [workspace] [repo-slug] <query>",
+	Short: "Search for code in a repository (requires code-search-enabled workspace)",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
@@ -212,38 +208,32 @@ var sourceSearchCmd = &cobra.Command{
 			SearchQuery: trailing[0],
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		// Bitbucket returns custom JSON structure for code search
 		fmt.Println(string(result))
+		return nil
 	},
 }
 
 var sourceWriteCmd = &cobra.Command{
-	Use:   "write [workspace] [repo-slug] [path]",
+	Use:   "write [workspace] [repo-slug] <path>",
 	Short: "Write or update a file in the repository",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		content, _ := cmd.Flags().GetString("content")
-		if content == "" {
-			fmt.Fprintln(os.Stderr, "Error: content is required")
-			os.Exit(1)
-		}
-
 		message, _ := cmd.Flags().GetString("message")
 		branch, _ := cmd.Flags().GetString("branch")
 		author, _ := cmd.Flags().GetString("author")
 
 		client := getClient()
-		err = client.WriteFile(bitbucket.WriteFileArgs{
+		if err := client.WriteFile(bitbucket.WriteFileArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			Path:      trailing[0],
@@ -251,25 +241,23 @@ var sourceWriteCmd = &cobra.Command{
 			Message:   message,
 			Branch:    branch,
 			Author:    author,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Successfully wrote file '%s'\n", trailing[0])
+		return nil
 	},
 }
 
 var sourceDeleteCmd = &cobra.Command{
-	Use:   "delete [workspace] [repo-slug] [path]",
+	Use:   "delete [workspace] [repo-slug] <path>",
 	Short: "Delete a file from the repository",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		message, _ := cmd.Flags().GetString("message")
@@ -277,20 +265,19 @@ var sourceDeleteCmd = &cobra.Command{
 		author, _ := cmd.Flags().GetString("author")
 
 		client := getClient()
-		err = client.DeleteFile(bitbucket.DeleteFileArgs{
+		if err := client.DeleteFile(bitbucket.DeleteFileArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			Path:      trailing[0],
 			Message:   message,
 			Branch:    branch,
 			Author:    author,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Successfully deleted file '%s'\n", trailing[0])
+		return nil
 	},
 }
 
@@ -310,7 +297,7 @@ func init() {
 
 	sourceHistoryCmd.Flags().String("ref", "", "Commit hash, branch, or tag (default: HEAD)")
 
-	sourceWriteCmd.Flags().StringP("content", "c", "", "File content to write (use - for stdin in a future release)")
+	sourceWriteCmd.Flags().StringP("content", "c", "", "File content to write")
 	sourceWriteCmd.Flags().StringP("message", "m", "", "Commit message")
 	sourceWriteCmd.Flags().StringP("branch", "b", "", "Branch to commit to (defaults to repo default branch)")
 	sourceWriteCmd.Flags().StringP("author", "a", "", "Commit author in 'Name <email>' format")

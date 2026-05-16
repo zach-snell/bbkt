@@ -2,15 +2,15 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/zach-snell/bbkt/internal/bitbucket"
 )
 
 var reposCmd = &cobra.Command{
-	Use:   "repos",
-	Short: "List, get, create, and delete Bitbucket repositories",
+	Use:     "repos",
+	GroupID: groupData,
+	Short:   "List, get, create, and delete Bitbucket repositories",
 	Long: `Manage repositories in a Bitbucket workspace. Omit positional
 workspace/repo args inside a Bitbucket git clone and they will be
 inferred from .git/config.`,
@@ -23,20 +23,18 @@ inferred from .git/config.`,
 
 var reposListCmd = &cobra.Command{
 	Use:   "list [workspace]",
-	Short: "List repositories in a workspace",
+	Short: "List repositories in a workspace (omit to infer from current git clone)",
 	Args:  cobra.RangeArgs(0, 1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		var workspace string
 		if len(args) == 1 {
 			workspace = args[0]
 		} else {
-			ws, _, _, err := ParseArgs(args, -1) // -1 means we just want workspace
+			ws, _, _, err := ParseArgs(args, -1)
 			if err != nil {
-				// Fallback to just GetLocalRepoInfo
 				w, _, err := bitbucket.GetLocalRepoInfo()
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error: must specify a workspace or run inside a git repo\n")
-					os.Exit(1)
+					return fmt.Errorf("must specify a workspace or run inside a Bitbucket git clone")
 				}
 				workspace = w
 			} else {
@@ -47,6 +45,7 @@ var reposListCmd = &cobra.Command{
 		query, _ := cmd.Flags().GetString("query")
 		role, _ := cmd.Flags().GetString("role")
 		sort, _ := cmd.Flags().GetString("sort")
+		page, pagelen := paginationArgs(cmd)
 
 		client := getClient()
 		result, err := client.ListRepositories(bitbucket.ListRepositoriesArgs{
@@ -54,10 +53,11 @@ var reposListCmd = &cobra.Command{
 			Query:     query,
 			Role:      role,
 			Sort:      sort,
+			Page:      page,
+			Pagelen:   pagelen,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -77,18 +77,18 @@ var reposListCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var reposGetCmd = &cobra.Command{
 	Use:   "get [workspace] [repo-slug]",
-	Short: "Get details for a specific repository",
+	Short: "Get details for a specific repository (omit args to infer from git)",
 	Args:  cobra.MaximumNArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
@@ -97,8 +97,7 @@ var reposGetCmd = &cobra.Command{
 			RepoSlug:  repoSlug,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -127,6 +126,7 @@ var reposGetCmd = &cobra.Command{
 			KV("Created", FormatTime(result.CreatedOn))
 			KV("Updated", FormatTime(result.UpdatedOn))
 		})
+		return nil
 	},
 }
 
@@ -134,11 +134,10 @@ var reposCreateCmd = &cobra.Command{
 	Use:   "create [workspace] [repo-slug]",
 	Short: "Create a new repository",
 	Args:  cobra.MaximumNArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		desc, _ := cmd.Flags().GetString("description")
@@ -158,8 +157,7 @@ var reposCreateCmd = &cobra.Command{
 			IsPrivate:   isPrivatePtr,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -171,31 +169,30 @@ var reposCreateCmd = &cobra.Command{
 			}
 			KV("Created", FormatTime(result.CreatedOn))
 		})
+		return nil
 	},
 }
 
 var reposDeleteCmd = &cobra.Command{
 	Use:   "delete [workspace] [repo-slug]",
-	Short: "Delete a repository",
+	Short: "Delete a repository (destructive — no confirmation)",
 	Args:  cobra.MaximumNArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
-		err = client.DeleteRepository(bitbucket.DeleteRepositoryArgs{
+		if err := client.DeleteRepository(bitbucket.DeleteRepositoryArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Repository '%s/%s' deleted successfully.\n", workspace, repoSlug)
+		return nil
 	},
 }
 
@@ -207,11 +204,12 @@ func init() {
 	reposCmd.AddCommand(reposDeleteCmd)
 
 	reposListCmd.Flags().StringP("query", "q", "", "Filter repositories using Bitbucket query syntax")
-	reposListCmd.Flags().String("role", "", "Filter by role (owner, admin, contributor, member)")
-	reposListCmd.Flags().String("sort", "", "Sort field (e.g. -updated_on)")
+	reposListCmd.Flags().String("role", "", "Filter by role: owner | admin | contributor | member")
+	reposListCmd.Flags().String("sort", "", "Sort field (e.g. -updated_on for newest first)")
+	addPaginationFlags(reposListCmd)
 
 	reposCreateCmd.Flags().String("description", "", "Repository description")
 	reposCreateCmd.Flags().String("language", "", "Primary programming language")
 	reposCreateCmd.Flags().String("project", "", "Project key to assign the repo to")
-	reposCreateCmd.Flags().Bool("private", true, "Is this repository private?")
+	reposCreateCmd.Flags().Bool("private", true, "Create as a private repository")
 }

@@ -14,6 +14,7 @@ import (
 var prsCmd = &cobra.Command{
 	Use:     "prs",
 	Aliases: []string{"pr"},
+	GroupID: groupData,
 	Short:   "Create, list, review, approve, merge, and decline pull requests",
 	Long: `Manage pull requests. Workspace and repo are inferred from your
 current git clone when omitted, so most commands can be run as
@@ -31,17 +32,17 @@ Alias: pr`,
 
 var prsListCmd = &cobra.Command{
 	Use:   "list [workspace] [repo-slug]",
-	Short: "List pull requests in a repository (omit workspace/repo to infer from git)",
+	Short: "List pull requests (omit workspace/repo to infer from git)",
 	Args:  cobra.MaximumNArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		query, _ := cmd.Flags().GetString("query")
 		state, _ := cmd.Flags().GetString("state")
+		page, pagelen := paginationArgs(cmd)
 
 		client := getClient()
 		result, err := client.ListPullRequests(bitbucket.ListPullRequestsArgs{
@@ -49,10 +50,11 @@ var prsListCmd = &cobra.Command{
 			RepoSlug:  repoSlug,
 			Query:     query,
 			State:     state,
+			Page:      page,
+			Pagelen:   pagelen,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -84,24 +86,23 @@ var prsListCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var prsGetCmd = &cobra.Command{
-	Use:   "get [workspace] [repo-slug] [pr-id]",
+	Use:   "get [workspace] [repo-slug] <pr-id>",
 	Short: "Get details for a specific pull request",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
 		client := getClient()
@@ -111,8 +112,7 @@ var prsGetCmd = &cobra.Command{
 			PRID:      prID,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -146,18 +146,18 @@ var prsGetCmd = &cobra.Command{
 			KV("Created", FormatTime(result.CreatedOn))
 			KV("Updated", FormatTime(result.UpdatedOn))
 		})
+		return nil
 	},
 }
 
 var prsCreateCmd = &cobra.Command{
 	Use:   "create [workspace] [repo-slug]",
-	Short: "Create a new pull request",
+	Short: "Create a new pull request (prompts interactively if --title/--source missing)",
 	Args:  cobra.RangeArgs(0, 2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		title, _ := cmd.Flags().GetString("title")
@@ -206,16 +206,14 @@ var prsCreateCmd = &cobra.Command{
 						Value(&draft),
 				),
 			)
-			err := form.Run()
-			if err != nil {
+			if err := form.Run(); err != nil {
 				fmt.Fprintln(os.Stderr, "Draft PR creation cancelled.")
-				os.Exit(1)
+				return err
 			}
 		}
 
 		if title == "" || source == "" {
-			fmt.Fprintln(os.Stderr, "Error: title and source branch are required")
-			os.Exit(1)
+			return fmt.Errorf("title and source branch are required")
 		}
 
 		if interactive {
@@ -234,8 +232,7 @@ var prsCreateCmd = &cobra.Command{
 			Draft:             draft,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -252,24 +249,23 @@ var prsCreateCmd = &cobra.Command{
 			}
 			KV("Created", FormatTime(result.CreatedOn))
 		})
+		return nil
 	},
 }
 
 var prsMergeCmd = &cobra.Command{
-	Use:   "merge [workspace] [repo-slug] [pr-id]",
+	Use:   "merge [workspace] [repo-slug] <pr-id>",
 	Short: "Merge a pull request",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
 		strategy, _ := cmd.Flags().GetString("strategy")
@@ -286,8 +282,7 @@ var prsMergeCmd = &cobra.Command{
 			CloseSourceBranch: closeSource,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -298,70 +293,65 @@ var prsMergeCmd = &cobra.Command{
 			}
 			KV("Updated", FormatTime(result.UpdatedOn))
 		})
+		return nil
 	},
 }
 
 var prsApproveCmd = &cobra.Command{
-	Use:   "approve [workspace] [repo-slug] [pr-id]",
+	Use:   "approve [workspace] [repo-slug] <pr-id>",
 	Short: "Approve a pull request",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
 		client := getClient()
-		err = client.ApprovePullRequest(bitbucket.PullRequestActionArgs{
+		if err := client.ApprovePullRequest(bitbucket.PullRequestActionArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			PRID:      prID,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Pull request #%d approved successfully.\n", prID)
+		return nil
 	},
 }
 
 var prsDeclineCmd = &cobra.Command{
-	Use:   "decline [workspace] [repo-slug] [pr-id]",
+	Use:   "decline [workspace] [repo-slug] <pr-id>",
 	Short: "Decline a pull request",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		prID, err := strconv.Atoi(trailing[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid PR ID: %s\n", trailing[0])
-			os.Exit(1)
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
 		}
 
 		client := getClient()
-		err = client.DeclinePullRequest(bitbucket.PullRequestActionArgs{
+		if err := client.DeclinePullRequest(bitbucket.PullRequestActionArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			PRID:      prID,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Pull request #%d declined successfully.\n", prID)
+		return nil
 	},
 }
 
@@ -375,7 +365,8 @@ func init() {
 	prsCmd.AddCommand(prsDeclineCmd)
 
 	prsListCmd.Flags().StringP("query", "q", "", "Filter pull requests using Bitbucket query syntax")
-	prsListCmd.Flags().String("state", "OPEN", "Filter by state (MERGED, SUPERSEDED, OPEN, DECLINED)")
+	prsListCmd.Flags().String("state", "OPEN", "Filter by state: OPEN | MERGED | SUPERSEDED | DECLINED")
+	addPaginationFlags(prsListCmd)
 
 	prsCreateCmd.Flags().StringP("title", "t", "", "Title of the pull request")
 	prsCreateCmd.Flags().StringP("source", "s", "", "Source branch name")
@@ -383,8 +374,6 @@ func init() {
 	prsCreateCmd.Flags().String("description", "", "Description of the pull request (markdown supported)")
 	prsCreateCmd.Flags().Bool("close-source-branch", true, "Close source branch on merge")
 	prsCreateCmd.Flags().Bool("draft", false, "Create as a draft PR")
-	// Required flags — prompts interactively if missing, but enforce when scripted.
-	// Skipped because the interactive `huh` form fills these in when omitted.
 
 	prsMergeCmd.Flags().String("strategy", "merge_commit", "Merge strategy: merge_commit | squash | fast_forward")
 	prsMergeCmd.Flags().StringP("message", "m", "", "Commit message for the merge commit")

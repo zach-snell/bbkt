@@ -13,6 +13,7 @@ import (
 var pipelinesCmd = &cobra.Command{
 	Use:     "pipelines",
 	Aliases: []string{"pipe"},
+	GroupID: groupData,
 	Short:   "List, trigger, stop, and inspect Bitbucket Pipelines runs",
 	Long: `Manage Bitbucket Pipelines runs and inspect their steps and logs.
 Workspace/repo are inferred from your git clone when omitted.
@@ -31,15 +32,15 @@ var pipelinesListCmd = &cobra.Command{
 	Use:   "list [workspace] [repo-slug]",
 	Short: "List pipeline runs for a repository",
 	Args:  cobra.RangeArgs(0, 2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		status, _ := cmd.Flags().GetString("status")
 		sort, _ := cmd.Flags().GetString("sort")
+		page, pagelen := paginationArgs(cmd)
 
 		client := getClient()
 		result, err := client.ListPipelines(bitbucket.ListPipelinesArgs{
@@ -47,10 +48,11 @@ var pipelinesListCmd = &cobra.Command{
 			RepoSlug:  repoSlug,
 			Status:    status,
 			Sort:      sort,
+			Page:      page,
+			Pagelen:   pagelen,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -83,18 +85,18 @@ var pipelinesListCmd = &cobra.Command{
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")
 		})
+		return nil
 	},
 }
 
 var pipelinesGetCmd = &cobra.Command{
-	Use:   "get [workspace] [repo-slug] [pipeline-uuid]",
+	Use:   "get [workspace] [repo-slug] <pipeline-uuid>",
 	Short: "Get details for a single pipeline run",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
@@ -104,8 +106,7 @@ var pipelinesGetCmd = &cobra.Command{
 			PipelineUUID: trailing[0],
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -130,18 +131,18 @@ var pipelinesGetCmd = &cobra.Command{
 			KV("Created", FormatTime(result.CreatedOn))
 			KV("Completed", FormatTimePtr(result.CompletedOn))
 		})
+		return nil
 	},
 }
 
 var pipelinesTriggerCmd = &cobra.Command{
 	Use:   "trigger [workspace] [repo-slug]",
-	Short: "Trigger a new pipeline run",
+	Short: "Trigger a new pipeline run (prompts interactively if --ref-name missing)",
 	Args:  cobra.RangeArgs(0, 2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, _, err := ParseArgs(args, 0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		refName, _ := cmd.Flags().GetString("ref-name")
@@ -182,16 +183,14 @@ var pipelinesTriggerCmd = &cobra.Command{
 						Value(&pattern),
 				),
 			)
-			err := form.Run()
-			if err != nil {
+			if err := form.Run(); err != nil {
 				fmt.Fprintln(os.Stderr, "Pipeline trigger cancelled.")
-				os.Exit(1)
+				return err
 			}
 		}
 
 		if refName == "" {
-			fmt.Fprintln(os.Stderr, "Error: ref-name is required")
-			os.Exit(1)
+			return fmt.Errorf("ref-name is required")
 		}
 
 		if interactive {
@@ -207,8 +206,7 @@ var pipelinesTriggerCmd = &cobra.Command{
 			Pattern:   pattern,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -222,44 +220,42 @@ var pipelinesTriggerCmd = &cobra.Command{
 			}
 			KV("Created", FormatTime(result.CreatedOn))
 		})
+		return nil
 	},
 }
 
 var pipelinesStopCmd = &cobra.Command{
-	Use:   "stop [workspace] [repo-slug] [pipeline-uuid]",
+	Use:   "stop [workspace] [repo-slug] <pipeline-uuid>",
 	Short: "Stop a running pipeline",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
-		err = client.StopPipeline(bitbucket.StopPipelineArgs{
+		if err := client.StopPipeline(bitbucket.StopPipelineArgs{
 			Workspace:    workspace,
 			RepoSlug:     repoSlug,
 			PipelineUUID: trailing[0],
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		}); err != nil {
+			return err
 		}
 
 		fmt.Printf("Pipeline '%s' stopped successfully.\n", trailing[0])
+		return nil
 	},
 }
 
 var pipelinesStepsCmd = &cobra.Command{
-	Use:   "steps [workspace] [repo-slug] [pipeline-uuid]",
+	Use:   "steps [workspace] [repo-slug] <pipeline-uuid>",
 	Short: "List steps in a pipeline run",
 	Args:  cobra.RangeArgs(1, 3),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
@@ -269,8 +265,7 @@ var pipelinesStepsCmd = &cobra.Command{
 			PipelineUUID: trailing[0],
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		PrintOrJSON(cmd, result, func() {
@@ -297,18 +292,18 @@ var pipelinesStepsCmd = &cobra.Command{
 			}
 			t.Flush()
 		})
+		return nil
 	},
 }
 
 var pipelinesLogsCmd = &cobra.Command{
-	Use:   "log [workspace] [repo-slug] [pipeline-uuid] [step-uuid]",
+	Use:   "log [workspace] [repo-slug] <pipeline-uuid> <step-uuid>",
 	Short: "Get the log output for a specific pipeline step",
 	Args:  cobra.RangeArgs(2, 4),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspace, repoSlug, trailing, err := ParseArgs(args, 2)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		client := getClient()
@@ -319,11 +314,11 @@ var pipelinesLogsCmd = &cobra.Command{
 			StepUUID:     trailing[1],
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
 		fmt.Println(string(result))
+		return nil
 	},
 }
 
@@ -338,6 +333,7 @@ func init() {
 
 	pipelinesListCmd.Flags().String("status", "", "Filter by status: SUCCESSFUL | FAILED | INPROGRESS | STOPPED")
 	pipelinesListCmd.Flags().String("sort", "-created_on", "Sort field (prefix with - for desc)")
+	addPaginationFlags(pipelinesListCmd)
 
 	pipelinesTriggerCmd.Flags().StringP("ref-name", "r", "", "Branch or tag name to run pipeline on")
 	pipelinesTriggerCmd.Flags().StringP("ref-type", "t", "branch", "Reference type: branch | tag | bookmark")
