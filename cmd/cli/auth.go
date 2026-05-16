@@ -8,24 +8,42 @@ import (
 	"github.com/zach-snell/bbkt/internal/bitbucket"
 )
 
-var (
-	useOAuth    bool
-	profileName string
-)
+var useOAuth bool
 
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Authenticate with Bitbucket Cloud",
 	Long: `Set up credentials for accessing Bitbucket Cloud.
 
-By default, this sets up an API Token (Basic Auth).
-If you prefer an OAuth 2.0 flow (requires workspace admin), use the --oauth flag.`,
+By default, prompts for an Atlassian API token (Basic Auth). Create
+one at:
+  https://id.atlassian.com/manage-profile/security/api-tokens
+
+Use the "Create API token with scopes" button — Bitbucket REST API
+requires scoped tokens since Sep 2025. You'll be prompted for your
+Atlassian email (used as the auth "username") and the token.
+
+For an OAuth 2.0 browser flow (requires a workspace OAuth consumer),
+use --oauth.
+
+Credentials are written to ~/.config/bbkt/credentials.json (0600).
+Pass --profile to save under a named profile (e.g. "work") so you
+can switch with 'bbkt --profile work ...' or 'bbkt profile use work'.`,
+	Example: `  bbkt auth                          # API token, saved to "default" profile
+  bbkt auth --profile work           # API token, saved to "work" profile
+  bbkt auth --oauth                  # OAuth 2.0 browser flow`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Profile name comes from the persistent --profile flag (root.go);
+		// default to "default" when saving creds so we always write somewhere.
+		profile, _ := cmd.Flags().GetString("profile")
+		if profile == "" {
+			profile = "default"
+		}
 		if useOAuth {
-			runOAuthLogin(profileName)
+			runOAuthLogin(profile)
 			return
 		}
-		if err := bitbucket.APITokenLogin(profileName); err != nil {
+		if err := bitbucket.APITokenLogin(profile); err != nil {
 			fmt.Fprintf(os.Stderr, "auth failed: %v\n", err)
 			os.Exit(1)
 		}
@@ -53,8 +71,8 @@ func init() {
 	RootCmd.AddCommand(statusCmd)
 	RootCmd.AddCommand(logoutCmd)
 
-	authCmd.Flags().BoolVar(&useOAuth, "oauth", false, "Authenticate via OAuth (opens browser)")
-	authCmd.Flags().StringVarP(&profileName, "profile", "p", "default", "Profile name to save these credentials under")
+	authCmd.Flags().BoolVar(&useOAuth, "oauth", false, "Authenticate via OAuth 2.0 (opens browser)")
+	// Note: --profile is inherited from RootCmd as a persistent flag and read in Run.
 
 	// `bbkt auth status` and `bbkt auth logout` are natural things to type;
 	// without aliases they silently fall through to the interactive login.

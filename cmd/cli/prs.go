@@ -14,7 +14,19 @@ import (
 var prsCmd = &cobra.Command{
 	Use:     "prs",
 	Aliases: []string{"pr"},
-	Short:   "Manage Bitbucket pull requests",
+	Short:   "Create, list, review, approve, merge, and decline pull requests",
+	Long: `Manage pull requests. Workspace and repo are inferred from your
+current git clone when omitted, so most commands can be run as
+'bbkt prs <verb>' inside a Bitbucket repo.
+
+Alias: pr`,
+	Example: `  bbkt prs list                           # open PRs on current repo
+  bbkt prs list --state MERGED            # filter by state
+  bbkt prs get 42                         # details on PR #42
+  bbkt prs create -t "Fix bug" -s feat/x
+  bbkt prs merge 42 --strategy squash
+  bbkt prs approve 42
+  bbkt prs comments add 42 -m "LGTM"`,
 }
 
 var prsListCmd = &cobra.Command{
@@ -365,14 +377,16 @@ func init() {
 	prsListCmd.Flags().StringP("query", "q", "", "Filter pull requests using Bitbucket query syntax")
 	prsListCmd.Flags().String("state", "OPEN", "Filter by state (MERGED, SUPERSEDED, OPEN, DECLINED)")
 
-	prsCreateCmd.Flags().StringP("title", "t", "", "Title of the pull request (required)")
-	prsCreateCmd.Flags().StringP("source", "s", "", "Source branch name (required)")
-	prsCreateCmd.Flags().StringP("destination", "d", "", "Destination branch name (optional, defaults to repo default)")
-	prsCreateCmd.Flags().String("description", "", "Description of the pull request")
+	prsCreateCmd.Flags().StringP("title", "t", "", "Title of the pull request")
+	prsCreateCmd.Flags().StringP("source", "s", "", "Source branch name")
+	prsCreateCmd.Flags().StringP("destination", "d", "", "Destination branch name (defaults to repo default branch)")
+	prsCreateCmd.Flags().String("description", "", "Description of the pull request (markdown supported)")
 	prsCreateCmd.Flags().Bool("close-source-branch", true, "Close source branch on merge")
 	prsCreateCmd.Flags().Bool("draft", false, "Create as a draft PR")
+	// Required flags — prompts interactively if missing, but enforce when scripted.
+	// Skipped because the interactive `huh` form fills these in when omitted.
 
-	prsMergeCmd.Flags().String("strategy", "merge_commit", "Merge strategy (merge_commit, squash, fast_forward)")
-	prsMergeCmd.Flags().StringP("message", "m", "", "Commit message")
-	prsMergeCmd.Flags().Bool("close-source-branch", true, "Close source branch")
+	prsMergeCmd.Flags().String("strategy", "merge_commit", "Merge strategy: merge_commit | squash | fast_forward")
+	prsMergeCmd.Flags().StringP("message", "m", "", "Commit message for the merge commit")
+	prsMergeCmd.Flags().Bool("close-source-branch", true, "Close source branch after merge")
 }

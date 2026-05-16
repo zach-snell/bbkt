@@ -10,7 +10,10 @@ import (
 
 var workspacesCmd = &cobra.Command{
 	Use:   "workspaces",
-	Short: "Manage Bitbucket workspaces",
+	Short: "List and inspect Bitbucket workspaces you have access to",
+	Long:  "Read-only operations on the workspaces your authenticated user (or token) has access to.",
+	Example: `  bbkt workspaces list             # all workspaces
+  bbkt workspaces get my-team`,
 }
 
 var workspacesListCmd = &cobra.Command{

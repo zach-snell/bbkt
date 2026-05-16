@@ -12,7 +12,20 @@ import (
 var sourceCmd = &cobra.Command{
 	Use:     "source",
 	Aliases: []string{"src"},
-	Short:   "Read and search repository source code",
+	Short:   "Read, search, write, and delete files in a repository",
+	Long: `Source operations against a Bitbucket repository: read raw file
+contents, list directories, search code, view file history, write
+files via commit, and delete files. Workspace/repo are inferred
+from your current git clone when omitted.
+
+Alias: src`,
+	Example: `  bbkt source read README.md
+  bbkt source read README.md --ref develop
+  bbkt source tree src --max-depth 2
+  bbkt source search "TODO"               # requires code-search-enabled workspace
+  bbkt source history src/main.go
+  bbkt source write notes.md -c "draft" -m "add notes" -b scratch
+  bbkt source delete old.txt -m "cleanup"`,
 }
 
 var sourceReadCmd = &cobra.Command{
@@ -297,10 +310,11 @@ func init() {
 
 	sourceHistoryCmd.Flags().String("ref", "", "Commit hash, branch, or tag (default: HEAD)")
 
-	sourceWriteCmd.Flags().StringP("content", "c", "", "Content to write to the file")
+	sourceWriteCmd.Flags().StringP("content", "c", "", "File content to write (use - for stdin in a future release)")
 	sourceWriteCmd.Flags().StringP("message", "m", "", "Commit message")
-	sourceWriteCmd.Flags().StringP("branch", "b", "", "Branch to commit to")
+	sourceWriteCmd.Flags().StringP("branch", "b", "", "Branch to commit to (defaults to repo default branch)")
 	sourceWriteCmd.Flags().StringP("author", "a", "", "Commit author in 'Name <email>' format")
+	_ = sourceWriteCmd.MarkFlagRequired("content")
 
 	sourceDeleteCmd.Flags().StringP("message", "m", "", "Commit message")
 	sourceDeleteCmd.Flags().StringP("branch", "b", "", "Branch to commit to")

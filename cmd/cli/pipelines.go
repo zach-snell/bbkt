@@ -13,7 +13,18 @@ import (
 var pipelinesCmd = &cobra.Command{
 	Use:     "pipelines",
 	Aliases: []string{"pipe"},
-	Short:   "Manage and trigger Bitbucket Pipelines",
+	Short:   "List, trigger, stop, and inspect Bitbucket Pipelines runs",
+	Long: `Manage Bitbucket Pipelines runs and inspect their steps and logs.
+Workspace/repo are inferred from your git clone when omitted.
+
+Alias: pipe`,
+	Example: `  bbkt pipelines list                         # recent runs on current repo
+  bbkt pipelines list --status FAILED         # only failed
+  bbkt pipelines trigger -r main              # run default pipeline on main
+  bbkt pipelines trigger -r feature/x -p deploy
+  bbkt pipelines steps {pipeline-uuid}
+  bbkt pipelines log {pipeline-uuid} {step-uuid}
+  bbkt pipelines stop {pipeline-uuid}`,
 }
 
 var pipelinesListCmd = &cobra.Command{
@@ -325,10 +336,10 @@ func init() {
 	pipelinesCmd.AddCommand(pipelinesStepsCmd)
 	pipelinesCmd.AddCommand(pipelinesLogsCmd)
 
-	pipelinesListCmd.Flags().String("status", "", "Filter by status (e.g. SUCCESSFUL, FAILED, INPROGRESS)")
-	pipelinesListCmd.Flags().String("sort", "-created_on", "Sort field")
+	pipelinesListCmd.Flags().String("status", "", "Filter by status: SUCCESSFUL | FAILED | INPROGRESS | STOPPED")
+	pipelinesListCmd.Flags().String("sort", "-created_on", "Sort field (prefix with - for desc)")
 
-	pipelinesTriggerCmd.Flags().StringP("ref-name", "r", "", "Branch or tag name to run pipeline on (required)")
-	pipelinesTriggerCmd.Flags().StringP("ref-type", "t", "branch", "Reference type: branch or tag")
-	pipelinesTriggerCmd.Flags().StringP("pattern", "p", "", "Custom pipeline pattern name to trigger (optional)")
+	pipelinesTriggerCmd.Flags().StringP("ref-name", "r", "", "Branch or tag name to run pipeline on")
+	pipelinesTriggerCmd.Flags().StringP("ref-type", "t", "branch", "Reference type: branch | tag | bookmark")
+	pipelinesTriggerCmd.Flags().StringP("pattern", "p", "", "Name of a 'custom:' pipeline from bitbucket-pipelines.yml (omit to run the branch's default pipeline)")
 }

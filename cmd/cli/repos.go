@@ -10,7 +10,15 @@ import (
 
 var reposCmd = &cobra.Command{
 	Use:   "repos",
-	Short: "Manage Bitbucket repositories",
+	Short: "List, get, create, and delete Bitbucket repositories",
+	Long: `Manage repositories in a Bitbucket workspace. Omit positional
+workspace/repo args inside a Bitbucket git clone and they will be
+inferred from .git/config.`,
+	Example: `  bbkt repos list                       # repos in current workspace
+  bbkt repos list my-team               # repos in a specific workspace
+  bbkt repos get my-team my-repo
+  bbkt repos create my-team new-repo --description "..."
+  bbkt repos delete my-team old-repo`,
 }
 
 var reposListCmd = &cobra.Command{

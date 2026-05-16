@@ -12,7 +12,16 @@ import (
 var issuesCmd = &cobra.Command{
 	Use:     "issues",
 	Aliases: []string{"issue"},
-	Short:   "Manage Bitbucket issues",
+	Short:   "List, get, create, and update repository issues",
+	Long: `Manage issues in a Bitbucket repository's issue tracker.
+Workspace/repo are inferred from your git clone when omitted.
+
+Alias: issue`,
+	Example: `  bbkt issues list                         # open issues on current repo
+  bbkt issues list --kind bug --priority major
+  bbkt issues get 17
+  bbkt issues create -t "Crash on login" --kind bug --priority critical
+  bbkt issues update 17 --state resolved`,
 }
 
 var issuesListCmd = &cobra.Command{
@@ -255,11 +264,12 @@ func init() {
 	issuesListCmd.Flags().StringP("search", "q", "", "Search query string")
 	issuesListCmd.Flags().String("sort", "", "Sort field (e.g. -updated_on)")
 
-	issuesCreateCmd.Flags().StringP("title", "t", "", "Title of the issue (required)")
-	issuesCreateCmd.Flags().StringP("content", "m", "", "Description of the issue (markdown)")
-	issuesCreateCmd.Flags().String("kind", "bug", "Kind: bug, enhancement, proposal, task")
-	issuesCreateCmd.Flags().String("priority", "major", "Priority: trivial, minor, major, critical, blocker")
+	issuesCreateCmd.Flags().StringP("title", "t", "", "Title of the issue")
+	issuesCreateCmd.Flags().StringP("content", "m", "", "Description of the issue (markdown supported)")
+	issuesCreateCmd.Flags().String("kind", "bug", "Kind: bug | enhancement | proposal | task")
+	issuesCreateCmd.Flags().String("priority", "major", "Priority: trivial | minor | major | critical | blocker")
 	issuesCreateCmd.Flags().String("assignee", "", "Assignee account ID")
+	_ = issuesCreateCmd.MarkFlagRequired("title")
 
 	issuesUpdateCmd.Flags().StringP("title", "t", "", "New title for the issue")
 	issuesUpdateCmd.Flags().StringP("content", "m", "", "New description of the issue")

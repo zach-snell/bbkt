@@ -18,10 +18,26 @@ var noAuth bool
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "Start the Bitbucket MCP Server",
+	Short: "Start the Bitbucket MCP Server (for Claude Desktop, Cursor, etc.)",
 	Long: `Starts the Model Context Protocol (MCP) server for Bitbucket.
-By default, this runs on stdio. You can provide a --port flag to
-run it using the HTTP Streamable transport.`,
+
+By default the server speaks stdio — the right mode for local MCP
+clients (Claude Desktop, Cursor). Use --port to switch to the HTTP
+Streamable transport for remote/network clients.
+
+Credentials are resolved in this order: BITBUCKET_ACCESS_TOKEN env,
+then BITBUCKET_USERNAME + BITBUCKET_API_TOKEN env, then the stored
+profile at ~/.config/bbkt/credentials.json (selected by --profile,
+BBKT_PROFILE, or active_profile).
+
+At startup the server introspects the token's granted scopes and
+silently drops tools the token can't use, so the AI agent never
+sees write tools it would fail to call. Use BITBUCKET_DISABLED_TOOLS
+to explicitly disable additional tools.`,
+	Example: `  bbkt mcp                              # stdio (default)
+  bbkt mcp --port 8080                  # HTTP Streamable on :8080
+  bbkt --profile work mcp               # use the "work" profile
+  bbkt mcp --no-auth                    # start without creds (tools return auth-required)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runServer()
 	},

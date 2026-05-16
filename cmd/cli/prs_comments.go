@@ -12,7 +12,18 @@ import (
 var prCommentsCmd = &cobra.Command{
 	Use:     "comments",
 	Aliases: []string{"comment"},
-	Short:   "Manage pull request comments",
+	Short:   "List, add, and resolve pull request comments",
+	Long: `Manage comments on a pull request. Pass --file with --to (new
+file line) or --from (old file line) for inline diff comments;
+without those, the comment attaches to the PR overview. Use
+--parent to reply to an existing comment ID.
+
+Alias: comment`,
+	Example: `  bbkt prs comments list 42
+  bbkt prs comments add 42 -m "Looks good"
+  bbkt prs comments add 42 -m "Nit" --file src/main.go --to 17
+  bbkt prs comments add 42 -m "Reply" --parent 9876
+  bbkt prs comments resolve 42 9876`,
 }
 
 var prCommentsListCmd = &cobra.Command{
@@ -175,9 +186,10 @@ func init() {
 	prCommentsCmd.AddCommand(prCommentsAddCmd)
 	prCommentsCmd.AddCommand(prCommentsResolveCmd)
 
-	prCommentsAddCmd.Flags().StringP("content", "m", "", "Comment content (markdown supported)")
-	prCommentsAddCmd.Flags().Int("parent", 0, "Parent comment ID to reply to")
-	prCommentsAddCmd.Flags().String("file", "", "File path for inline comments")
-	prCommentsAddCmd.Flags().Int("to", 0, "Line number the comment applies to (for new or modified lines)")
-	prCommentsAddCmd.Flags().Int("from", 0, "Line number the comment applies to (for deleted lines)")
+	prCommentsAddCmd.Flags().StringP("content", "m", "", "Comment body (markdown supported)")
+	prCommentsAddCmd.Flags().Int("parent", 0, "Reply to this comment ID (creates a threaded reply)")
+	prCommentsAddCmd.Flags().String("file", "", "File path for an inline diff comment (pair with --to or --from)")
+	prCommentsAddCmd.Flags().Int("to", 0, "Line in the new file for additions/context (requires --file)")
+	prCommentsAddCmd.Flags().Int("from", 0, "Line in the old file for deletions (requires --file)")
+	_ = prCommentsAddCmd.MarkFlagRequired("content")
 }

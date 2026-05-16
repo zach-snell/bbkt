@@ -16,11 +16,30 @@ var RootCmd = &cobra.Command{
 	Long: `bbkt is a complete command-line interface and Model Context Protocol
 server for Bitbucket Cloud.
 
-It allows you to manage workspaces, repositories, pull requests,
-pipelines, and more directly from your terminal, or expose these
-capabilities to your AI agents via the MCP protocol.
+Manage workspaces, repositories, pull requests, pipelines, and source
+code from your terminal, or expose the same capabilities to AI agents
+via 'bbkt mcp'.
 
-Try running 'bbkt auth' to get started!`,
+Most commands auto-detect the current workspace/repo from your git
+config when run inside a clone, so 'bbkt prs list' Just Works.
+
+Credentials are stored at ~/.config/bbkt/credentials.json. Use
+--profile (or BBKT_PROFILE) to switch between named profiles
+(e.g. personal vs work).`,
+	Example: `  # First-time setup
+  bbkt auth                        # save credentials to default profile
+  bbkt status                      # confirm you're authenticated
+
+  # Daily use (inside a Bitbucket repo)
+  bbkt prs list                    # workspace/repo inferred from git
+  bbkt pipelines trigger -r main
+
+  # Multi-account
+  bbkt auth --profile work
+  bbkt --profile work prs list     # one-shot profile override
+
+  # MCP server (for Claude Desktop / Cursor / etc.)
+  bbkt mcp`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
 			os.Setenv("BBKT_PROFILE", profile)
@@ -39,4 +58,5 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().Bool("json", false, "Output raw JSON instead of formatted tables")
+	RootCmd.PersistentFlags().StringP("profile", "p", "", "Credential profile to use (overrides active profile / BBKT_PROFILE)")
 }
