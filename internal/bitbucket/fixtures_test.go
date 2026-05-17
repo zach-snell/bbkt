@@ -141,6 +141,42 @@ func TestFixture_InlineComments_NullFromParsesAsNil(t *testing.T) {
 	}
 }
 
+// TestFixture_ListWorkspaces_FlattensWorkspaceAccess verifies that the
+// workspace_access envelope returned by /user/workspaces is flattened into
+// usable Workspace rows. Regression: before the fix, the listing decoded
+// into Workspace directly and every row came back with empty Slug/UUID
+// because the real fields live one level deep under `.workspace`.
+func TestFixture_ListWorkspaces_FlattensWorkspaceAccess(t *testing.T) {
+	c := newVCRClient(t, "list_workspaces")
+
+	result, err := c.ListWorkspaces(ListWorkspacesArgs{})
+	if err != nil {
+		t.Fatalf("ListWorkspaces: %v", err)
+	}
+	if len(result.Values) != 2 {
+		t.Fatalf("expected 2 workspaces, got %d", len(result.Values))
+	}
+
+	for i, w := range result.Values {
+		if w.Slug == "" {
+			t.Errorf("row %d: Slug empty — workspace_access envelope not flattened", i)
+		}
+		if w.UUID == "" {
+			t.Errorf("row %d: UUID empty — workspace_access envelope not flattened", i)
+		}
+	}
+
+	// IsAdmin must come from the envelope's `administrator` field, not the
+	// inner workspace_base. Pin both values so a refactor that drops the
+	// flag (or copies it from the wrong place) fails loudly.
+	if result.Values[0].IsAdmin {
+		t.Errorf("row 0 should be non-admin (administrator=false in fixture)")
+	}
+	if !result.Values[1].IsAdmin {
+		t.Errorf("row 1 should be admin (administrator=true in fixture)")
+	}
+}
+
 // TestFixture_Pipeline_NestedState verifies that a Pipeline's deeply-nested
 // State/Result/Stage/Target structure unmarshals cleanly. Pipelines return
 // pointer-typed nested objects that are easy to drop during refactors.

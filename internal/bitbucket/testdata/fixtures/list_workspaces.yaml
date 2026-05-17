@@ -1,0 +1,61 @@
+---
+version: 2
+interactions:
+  - id: 0
+    request:
+      proto: HTTP/1.1
+      proto_major: 1
+      proto_minor: 1
+      content_length: 0
+      host: api.bitbucket.org
+      url: https://api.bitbucket.org/2.0/user/workspaces?pagelen=25&page=1
+      method: GET
+      headers:
+        Accept:
+          - application/json
+    response:
+      proto: HTTP/2.0
+      proto_major: 2
+      proto_minor: 0
+      content_length: -1
+      uncompressed: true
+      status: 200 OK
+      code: 200
+      duration: 42ms
+      headers:
+        Content-Type:
+          - application/json; charset=utf-8
+      body: |
+        {
+          "pagelen": 25,
+          "size": 2,
+          "page": 1,
+          "values": [
+            {
+              "type": "workspace_access",
+              "administrator": false,
+              "workspace": {
+                "type": "workspace_base",
+                "uuid": "{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}",
+                "slug": "demo-ws-one",
+                "links": {
+                  "avatar": {"href": "https://bitbucket.org/workspaces/demo-ws-one/avatar/"},
+                  "self":   {"href": "https://api.bitbucket.org/2.0/workspaces/demo-ws-one"}
+                }
+              }
+            },
+            {
+              "type": "workspace_access",
+              "administrator": true,
+              "workspace": {
+                "type": "workspace_base",
+                "uuid": "{bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb}",
+                "slug": "demo-ws-two",
+                "links": {
+                  "avatar": {"href": "https://bitbucket.org/workspaces/demo-ws-two/avatar/"},
+                  "self":   {"href": "https://api.bitbucket.org/2.0/workspaces/demo-ws-two"}
+                }
+              }
+            }
+          ]
+        }

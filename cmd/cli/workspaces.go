@@ -37,9 +37,14 @@ var workspacesListCmd = &cobra.Command{
 				return
 			}
 			t := NewTable()
-			t.Header("Name", "Slug", "Visibility")
+			// /user/workspaces returns workspace_base (uuid+slug+links only)
+			// inside a workspace_access envelope — Name and Visibility aren't
+			// in the response, so we surface what we have: Slug, UUID, and
+			// the membership's admin flag. Run `bbkt workspaces get <slug>`
+			// for full details.
+			t.Header("Slug", "UUID", "Admin")
 			for _, w := range result.Values {
-				t.Row(w.Name, w.Slug, FormatPrivate(w.IsPrivate))
+				t.Row(w.Slug, w.UUID, FormatBool(w.IsAdmin))
 			}
 			t.Flush()
 			PrintPaginationFooter(result.Size, result.Page, len(result.Values), result.Next != "")

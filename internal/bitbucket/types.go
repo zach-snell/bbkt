@@ -3,13 +3,31 @@ package bitbucket
 import "time"
 
 // Workspace represents a Bitbucket workspace.
+//
+// Note: Name and IsPrivate are only populated by the /workspaces/{slug}
+// detail endpoint. The /user/workspaces listing endpoint (workspace_base
+// shape) returns only UUID, Slug, and Links — Name and IsPrivate will be
+// zero-valued on rows produced by ListWorkspaces. IsAdmin is the inverse:
+// only meaningful on listing rows, where it comes from the workspace_access
+// envelope.
 type Workspace struct {
 	UUID      string `json:"uuid"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
 	IsPrivate bool   `json:"is_private"`
+	IsAdmin   bool   `json:"is_admin,omitempty"`
 	Type      string `json:"type"`
 	Links     Links  `json:"links"`
+}
+
+// workspaceAccess is the envelope shape returned by /user/workspaces. Each
+// row wraps a workspace_base under .workspace and carries an administrator
+// flag at the top level. Internal-only — callers consume the flattened
+// Workspace produced by ListWorkspaces.
+type workspaceAccess struct {
+	Type          string    `json:"type"`
+	Administrator bool      `json:"administrator"`
+	Workspace     Workspace `json:"workspace"`
 }
 
 // Repository represents a Bitbucket repository.

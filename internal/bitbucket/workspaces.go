@@ -11,6 +11,12 @@ type ListWorkspacesArgs struct {
 }
 
 // ListWorkspaces returns workspaces for the authenticated user.
+//
+// The /user/workspaces endpoint returns workspace_access envelopes rather
+// than bare workspaces — each row is {administrator, workspace:{uuid,slug,
+// links}}, where workspace_base omits Name and IsPrivate. We flatten the
+// envelope here so callers see a clean []Workspace; Name/IsPrivate stay
+// zero on listing rows (use GetWorkspace for those).
 func (c *Client) ListWorkspaces(args ListWorkspacesArgs) (*Paginated[Workspace], error) {
 	pagelen := args.Pagelen
 	if pagelen == 0 {
@@ -22,10 +28,29 @@ func (c *Client) ListWorkspaces(args ListWorkspacesArgs) (*Paginated[Workspace],
 	}
 
 	// /workspaces was deprecated by Bitbucket on 2026-02-25 (CHANGE-2770).
-	// /user/workspaces (added in CHANGE-3022) returns the same paginated
-	// envelope but scoped to the authenticated user's workspace memberships.
+	// /user/workspaces (added in CHANGE-3022) returns a paginated envelope
+	// of workspace_access objects (not bare workspaces) scoped to the
+	// authenticated user.
 	path := fmt.Sprintf("/user/workspaces?pagelen=%d&page=%d", pagelen, page)
-	return GetPaginated[Workspace](c, path)
+	raw, err := GetPaginated[workspaceAccess](c, path)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &Paginated[Workspace]{
+		Size:     raw.Size,
+		Page:     raw.Page,
+		PageLen:  raw.PageLen,
+		Next:     raw.Next,
+		Previous: raw.Previous,
+		Values:   make([]Workspace, 0, len(raw.Values)),
+	}
+	for _, a := range raw.Values {
+		w := a.Workspace
+		w.IsAdmin = a.Administrator
+		out.Values = append(out.Values, w)
+	}
+	return out, nil
 }
 
 type GetWorkspaceArgs struct {
