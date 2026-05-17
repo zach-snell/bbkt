@@ -136,10 +136,10 @@ func TestParseArgs_MissingWorkspaceErrorMentionsFlag(t *testing.T) {
 
 func TestSplitRepoSpec(t *testing.T) {
 	cases := []struct {
-		in        string
-		wantWS    string
-		wantSlug  string
-		wantOK    bool
+		in       string
+		wantWS   string
+		wantSlug string
+		wantOK   bool
 	}{
 		{"ws/slug", "ws", "slug", true},
 		{"ws/with/slash", "ws", "with/slash", true}, // SplitN keeps the remainder intact

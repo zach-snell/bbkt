@@ -45,8 +45,15 @@ func ParseArgs(cmd *cobra.Command, args []string, trailingArgsCount int) (worksp
 	// 2. positional args
 	// Layout: [workspace] [repo-slug] <trailing...>
 	// Only consume from positionals what the flag/env layer did NOT already set.
+	n := len(args)
 	switch {
-	case trailingArgsCount >= 0 && len(args) == trailingArgsCount+2:
+	case trailingArgsCount < 0:
+		// repos-list style — workspace-only positional, no trailing arg semantics
+		if n >= 1 && workspace == "" {
+			workspace = args[0]
+		}
+		trailing = nil
+	case n >= 2 && n == trailingArgsCount+2:
 		if workspace == "" {
 			workspace = args[0]
 		}
@@ -54,20 +61,14 @@ func ParseArgs(cmd *cobra.Command, args []string, trailingArgsCount int) (worksp
 			repoSlug = args[1]
 		}
 		trailing = args[2:]
-	case trailingArgsCount >= 0 && len(args) == trailingArgsCount+1 && workspace != "" && repoSlug == "":
+	case n >= 1 && n == trailingArgsCount+1 && workspace != "" && repoSlug == "":
 		// flag/env supplied workspace; positional supplies repo
 		repoSlug = args[0]
 		trailing = args[1:]
-	case trailingArgsCount >= 0 && len(args) == trailingArgsCount:
+	case n == trailingArgsCount:
 		trailing = args
-	case trailingArgsCount < 0:
-		// repos-list style — workspace-only positional, no trailing arg semantics
-		if len(args) >= 1 && workspace == "" {
-			workspace = args[0]
-		}
-		trailing = nil
 	default:
-		return "", "", nil, fmt.Errorf("expected %d positional arg(s); got %d. Pass -R workspace/slug or -W workspace -R slug, or run inside a Bitbucket git clone", trailingArgsCount, len(args))
+		return "", "", nil, fmt.Errorf("expected %d positional arg(s); got %d. Pass -R workspace/slug or -W workspace -R slug, or run inside a Bitbucket git clone", trailingArgsCount, n)
 	}
 
 	// 3. git inference for whatever still isn't set
@@ -126,7 +127,7 @@ func splitRepoSpec(spec string) (workspace, slug string, ok bool) {
 // workspaces from the cached credentials profile, when available. Falls back
 // to a plain message if credentials aren't loaded or the cache is empty.
 func missingScopeError(missing string) error {
-	hint := fmt.Sprintf("Pass -R workspace/slug (or -W <workspace>), set BBKT_WORKSPACE / BBKT_REPO, or run inside a Bitbucket git clone.")
+	hint := "Pass -R workspace/slug (or -W <workspace>), set BBKT_WORKSPACE / BBKT_REPO, or run inside a Bitbucket git clone."
 
 	creds, cerr := bitbucket.LoadCredentials()
 	if cerr != nil {

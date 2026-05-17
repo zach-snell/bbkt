@@ -15,7 +15,7 @@ import (
 // This lets a user pin an MCP server to a single workspace in their client
 // config (e.g. Claude Desktop) without changing tool schemas. The model can
 // always override per-call by passing workspace/repo_slug explicitly.
-func ResolveScope(workspace, repo string) (string, string) {
+func ResolveScope(workspace, repo string) (effectiveWorkspace, effectiveRepo string) {
 	if workspace == "" {
 		workspace = os.Getenv("BBKT_WORKSPACE")
 	}
