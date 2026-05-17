@@ -54,13 +54,14 @@ func ParseArgs(cmd *cobra.Command, args []string, trailingArgsCount int) (worksp
 		}
 		trailing = nil
 	case n >= 2 && n == trailingArgsCount+2:
+		// gosec G602 doesn't trace case guards — n>=2 above proves safety.
 		if workspace == "" {
 			workspace = args[0]
 		}
 		if repoSlug == "" {
-			repoSlug = args[1]
+			repoSlug = args[1] //nolint:gosec // bounded by case guard n>=2
 		}
-		trailing = args[2:]
+		trailing = args[2:] //nolint:gosec // bounded by case guard n>=2
 	case n >= 1 && n == trailingArgsCount+1 && workspace != "" && repoSlug == "":
 		// flag/env supplied workspace; positional supplies repo
 		repoSlug = args[0]
