@@ -27,6 +27,7 @@ type ManageRepositoriesArgs struct {
 // ManageRepositoriesHandler handles the consolidated repository operations.
 func ManageRepositoriesHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManageRepositoriesArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManageRepositoriesArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "list":
 			result, err := c.ListRepositories(bitbucket.ListRepositoriesArgs{

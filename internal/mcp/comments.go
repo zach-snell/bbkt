@@ -27,6 +27,7 @@ type ManagePRCommentsArgs struct {
 // ManagePRCommentsHandler handles the consolidated PR comments operations.
 func ManagePRCommentsHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManagePRCommentsArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManagePRCommentsArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "list":
 			result, err := c.ListPRComments(bitbucket.ListPRCommentsArgs{

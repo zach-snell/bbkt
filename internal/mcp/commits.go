@@ -26,6 +26,7 @@ type ManageCommitsArgs struct {
 // ManageCommitsHandler handles the consolidated commit operations.
 func ManageCommitsHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManageCommitsArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManageCommitsArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "list":
 			result, err := c.ListCommits(bitbucket.ListCommitsArgs{

@@ -35,7 +35,7 @@ var prsListCmd = &cobra.Command{
 	Short: "List pull requests (omit workspace/repo to infer from git)",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ var prsGetCmd = &cobra.Command{
 	Short: "Get details for a specific pull request",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -155,7 +155,7 @@ var prsCreateCmd = &cobra.Command{
 	Short: "Create a new pull request (prompts interactively if --title/--source missing)",
 	Args:  cobra.RangeArgs(0, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
@@ -258,7 +258,7 @@ var prsMergeCmd = &cobra.Command{
 	Short: "Merge a pull request",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -302,7 +302,7 @@ var prsApproveCmd = &cobra.Command{
 	Short: "Approve a pull request",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -331,7 +331,7 @@ var prsDeclineCmd = &cobra.Command{
 	Short: "Decline a pull request",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}

@@ -28,6 +28,7 @@ type ManageIssuesArgs struct {
 // ManageIssuesHandler handles the consolidated issue operations.
 func ManageIssuesHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManageIssuesArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManageIssuesArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "list":
 			result, err := c.ListIssues(bitbucket.ListIssuesArgs{

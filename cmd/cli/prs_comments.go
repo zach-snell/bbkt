@@ -30,7 +30,7 @@ var prCommentsListCmd = &cobra.Command{
 	Short: "List comments on a pull request",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ var prCommentsAddCmd = &cobra.Command{
 	Short: "Add a comment to a pull request",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -139,7 +139,7 @@ var prCommentsResolveCmd = &cobra.Command{
 	Short: "Resolve a comment thread",
 	Args:  cobra.RangeArgs(2, 4),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 2)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 2)
 		if err != nil {
 			return err
 		}

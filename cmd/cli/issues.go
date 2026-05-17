@@ -29,7 +29,7 @@ var issuesListCmd = &cobra.Command{
 	Short: "List issues in a repository",
 	Args:  cobra.RangeArgs(0, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ var issuesGetCmd = &cobra.Command{
 	Short: "Get details for a specific issue",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ var issuesCreateCmd = &cobra.Command{
 	Short: "Create a new issue",
 	Args:  cobra.RangeArgs(0, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
@@ -181,7 +181,7 @@ var issuesUpdateCmd = &cobra.Command{
 	Short: "Update an existing issue",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}

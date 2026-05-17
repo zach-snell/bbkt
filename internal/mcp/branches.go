@@ -24,6 +24,7 @@ type ManageRefsArgs struct {
 // ManageRefsHandler handles the consolidated branch and tag operations.
 func ManageRefsHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManageRefsArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManageRefsArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "list-branches":
 			result, err := c.ListBranches(bitbucket.ListBranchesArgs{

@@ -32,7 +32,11 @@ Credentials are stored at ~/.config/bbkt/credentials.json. Use
 
   # Daily use (inside a Bitbucket repo)
   bbkt prs list                    # workspace/repo inferred from git
-  bbkt pipelines trigger -r main
+
+  # Outside a clone: pin scope with flag, env, or positional
+  bbkt -R myws/myrepo prs list     # --repo workspace/slug (gh-style)
+  bbkt -W myws repos list          # workspace-only
+  BBKT_REPO=myws/myrepo bbkt prs list
 
   # Multi-account
   bbkt auth --profile work
@@ -66,5 +70,7 @@ func Execute() {
 func init() {
 	RootCmd.PersistentFlags().Bool("json", false, "Output raw JSON instead of formatted tables")
 	RootCmd.PersistentFlags().StringP("profile", "p", "", "Credential profile to use (overrides active profile / BBKT_PROFILE)")
+	RootCmd.PersistentFlags().StringP("workspace", "W", "", "Bitbucket workspace slug (overrides BBKT_WORKSPACE and positional args)")
+	RootCmd.PersistentFlags().StringP("repo", "R", "", "Bitbucket repo as workspace/slug, or plain slug when --workspace is set (overrides BBKT_REPO and positional args)")
 	registerGroups()
 }

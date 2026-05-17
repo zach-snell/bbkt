@@ -31,6 +31,7 @@ type ManagePullRequestsArgs struct {
 // ManagePullRequestsHandler handles the consolidated pull request operations.
 func ManagePullRequestsHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManagePullRequestsArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManagePullRequestsArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "list":
 			result, err := c.ListPullRequests(bitbucket.ListPullRequestsArgs{

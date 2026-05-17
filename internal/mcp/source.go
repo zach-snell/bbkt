@@ -29,6 +29,7 @@ type ManageSourceArgs struct {
 // ManageSourceHandler handles the consolidated source file and directory operations.
 func ManageSourceHandler(c *bitbucket.Client) func(context.Context, *mcp.CallToolRequest, ManageSourceArgs) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, args ManageSourceArgs) (*mcp.CallToolResult, any, error) {
+		args.Workspace, args.RepoSlug = ResolveScope(args.Workspace, args.RepoSlug)
 		switch args.Action {
 		case "read_file":
 			if args.Path == "" {

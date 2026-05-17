@@ -33,7 +33,7 @@ var sourceReadCmd = &cobra.Command{
 	Short: "Get the raw content of a file",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -62,29 +62,21 @@ var sourceTreeCmd = &cobra.Command{
 	Short: "List files and directories",
 	Args:  cobra.RangeArgs(0, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Because path is optional, if len(args) == 0: git, path=""
-		// If len(args) == 1: git, path=args[0]
-		// If len(args) == 2: args[0]=ws, args[1]=rs, path=""
-		// If len(args) == 3: args[0]=ws, args[1]=rs, path=args[2]
-
-		var workspace, repoSlug, path string
-
-		if len(args) == 0 || len(args) == 1 {
-			ws, rs, err := bitbucket.GetLocalRepoInfo()
-			if err != nil {
-				return err
-			}
-			workspace = ws
-			repoSlug = rs
-			if len(args) == 1 {
-				path = args[0]
-			}
-		} else if len(args) == 2 || len(args) == 3 {
-			workspace = args[0]
-			repoSlug = args[1]
-			if len(args) == 3 {
-				path = args[2]
-			}
+		// path is optional and trails an optional [workspace] [repo-slug] prefix:
+		//   0 args → ws/repo from flag/env/git; path=""
+		//   1 arg  → ws/repo from flag/env/git; path=args[0]
+		//   2 args → ws=args[0], repo=args[1];  path=""
+		//   3 args → ws=args[0], repo=args[1];  path=args[2]
+		// Strip the trailing path (if any), then delegate to the standard resolver.
+		var path string
+		nonPath := args
+		if n := len(args); n == 1 || n == 3 {
+			path = args[n-1]
+			nonPath = args[:n-1]
+		}
+		workspace, repoSlug, _, err := ParseArgs(cmd, nonPath, 0)
+		if err != nil {
+			return err
 		}
 
 		ref, _ := cmd.Flags().GetString("ref")
@@ -132,7 +124,7 @@ var sourceHistoryCmd = &cobra.Command{
 	Short: "Get the commit history for a specific file",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -196,7 +188,7 @@ var sourceSearchCmd = &cobra.Command{
 	Short: "Search for code in a repository (requires code-search-enabled workspace)",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -222,7 +214,7 @@ var sourceWriteCmd = &cobra.Command{
 	Short: "Write or update a file in the repository",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}
@@ -255,7 +247,7 @@ var sourceDeleteCmd = &cobra.Command{
 	Short: "Delete a file from the repository",
 	Args:  cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, trailing, err := ParseArgs(args, 1)
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
 		if err != nil {
 			return err
 		}

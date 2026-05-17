@@ -26,20 +26,9 @@ var reposListCmd = &cobra.Command{
 	Short: "List repositories in a workspace (omit to infer from current git clone)",
 	Args:  cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var workspace string
-		if len(args) == 1 {
-			workspace = args[0]
-		} else {
-			ws, _, _, err := ParseArgs(args, -1)
-			if err != nil {
-				w, _, err := bitbucket.GetLocalRepoInfo()
-				if err != nil {
-					return fmt.Errorf("must specify a workspace or run inside a Bitbucket git clone")
-				}
-				workspace = w
-			} else {
-				workspace = ws
-			}
+		workspace, _, _, err := ParseArgs(cmd, args, -1)
+		if err != nil {
+			return err
 		}
 
 		query, _ := cmd.Flags().GetString("query")
@@ -86,7 +75,7 @@ var reposGetCmd = &cobra.Command{
 	Short: "Get details for a specific repository (omit args to infer from git)",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
@@ -135,7 +124,7 @@ var reposCreateCmd = &cobra.Command{
 	Short: "Create a new repository",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
@@ -178,7 +167,7 @@ var reposDeleteCmd = &cobra.Command{
 	Short: "Delete a repository (destructive — no confirmation)",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		workspace, repoSlug, _, err := ParseArgs(args, 0)
+		workspace, repoSlug, _, err := ParseArgs(cmd, args, 0)
 		if err != nil {
 			return err
 		}
