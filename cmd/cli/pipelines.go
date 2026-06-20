@@ -243,7 +243,9 @@ var pipelinesStopCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Pipeline '%s' stopped successfully.\n", trailing[0])
+		PrintOrJSON(cmd, map[string]any{"uuid": trailing[0], "stopped": true}, func() {
+			fmt.Printf("Pipeline '%s' stopped successfully.\n", trailing[0])
+		})
 		return nil
 	},
 }

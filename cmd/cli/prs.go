@@ -321,7 +321,9 @@ var prsApproveCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Pull request #%d approved successfully.\n", prID)
+		PrintOrJSON(cmd, map[string]any{"id": prID, "approved": true}, func() {
+			fmt.Printf("Pull request #%d approved successfully.\n", prID)
+		})
 		return nil
 	},
 }
@@ -350,7 +352,9 @@ var prsDeclineCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Pull request #%d declined successfully.\n", prID)
+		PrintOrJSON(cmd, map[string]any{"id": prID, "declined": true}, func() {
+			fmt.Printf("Pull request #%d declined successfully.\n", prID)
+		})
 		return nil
 	},
 }

@@ -27,6 +27,18 @@ func PrintJSON(data any) {
 	fmt.Println(string(out))
 }
 
+// PrintJSONError writes an error as a JSON object to stderr, so that a caller
+// running with --json gets structured error output on the error path too,
+// instead of a human-readable "Error: ..." line.
+func PrintJSONError(err error) {
+	out, mErr := json.MarshalIndent(map[string]string{"error": err.Error()}, "", "  ")
+	if mErr != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		return
+	}
+	fmt.Fprintln(os.Stderr, string(out))
+}
+
 // PrintOrJSON prints formatted output or JSON depending on the --json flag.
 // The formatter func should print the human-readable output.
 func PrintOrJSON(cmd *cobra.Command, data any, formatter func()) {

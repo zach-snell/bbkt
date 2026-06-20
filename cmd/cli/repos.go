@@ -180,7 +180,13 @@ var reposDeleteCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Repository '%s/%s' deleted successfully.\n", workspace, repoSlug)
+		PrintOrJSON(cmd, map[string]any{
+			"workspace": workspace,
+			"repo_slug": repoSlug,
+			"deleted":   true,
+		}, func() {
+			fmt.Printf("Repository '%s/%s' deleted successfully.\n", workspace, repoSlug)
+		})
 		return nil
 	},
 }

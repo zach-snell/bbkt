@@ -85,7 +85,9 @@ var profileUseCmd = &cobra.Command{
 			return fmt.Errorf("saving profile: %w", err)
 		}
 
-		fmt.Printf("Active profile set to %q\n", name)
+		PrintOrJSON(cmd, map[string]any{"active_profile": name}, func() {
+			fmt.Printf("Active profile set to %q\n", name)
+		})
 		return nil
 	},
 }
@@ -99,7 +101,11 @@ var profileRefreshCmd = &cobra.Command{
 			return fmt.Errorf("loading profiles: %w", err)
 		}
 
-		fmt.Println("Refreshing workspaces...")
+		asJSON := outputJSON(cmd)
+		if !asJSON {
+			fmt.Println("Refreshing workspaces...")
+		}
+		results := make([]map[string]any, 0, len(store.Profiles))
 		for name, cred := range store.Profiles {
 			var client *bitbucket.Client
 			if cred.IsAPIToken() {
@@ -113,14 +119,19 @@ var profileRefreshCmd = &cobra.Command{
 			if client != nil {
 				slugs := bitbucket.FetchAccessibleWorkspaces(client)
 				cred.AccessibleWorkspaces = slugs
-				fmt.Printf("  - %s: Found %d workspaces\n", name, len(slugs))
+				results = append(results, map[string]any{"profile": name, "workspaces": len(slugs)})
+				if !asJSON {
+					fmt.Printf("  - %s: Found %d workspaces\n", name, len(slugs))
+				}
 			}
 		}
 
 		if err := bitbucket.SaveProfileStore(store); err != nil {
 			return fmt.Errorf("saving profiles: %w", err)
 		}
-		fmt.Println("Done.")
+		PrintOrJSON(cmd, map[string]any{"refreshed": results}, func() {
+			fmt.Println("Done.")
+		})
 		return nil
 	},
 }

@@ -164,7 +164,9 @@ var prCommentsResolveCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Comment thread %d resolved successfully.\n", commentID)
+		PrintOrJSON(cmd, map[string]any{"id": commentID, "resolved": true}, func() {
+			fmt.Printf("Comment thread %d resolved successfully.\n", commentID)
+		})
 		return nil
 	},
 }

@@ -65,7 +65,7 @@ var logoutCmd = &cobra.Command{
 	GroupID: groupAuth,
 	Short:   "Log out and remove stored credentials",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runLogout()
+		return runLogout(cmd)
 	},
 }
 
@@ -91,7 +91,7 @@ func init() {
 		Use:   "logout",
 		Short: "Log out and remove stored credentials (alias for `bbkt logout`)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLogout()
+			return runLogout(cmd)
 		},
 	})
 }
@@ -165,10 +165,12 @@ func runStatus() {
 	}
 }
 
-func runLogout() error {
+func runLogout(cmd *cobra.Command) error {
 	if err := bitbucket.RemoveCredentials(); err != nil {
 		return fmt.Errorf("removing credentials: %w", err)
 	}
-	fmt.Println("Logged out. Credentials removed.")
+	PrintOrJSON(cmd, map[string]any{"logged_out": true}, func() {
+		fmt.Println("Logged out. Credentials removed.")
+	})
 	return nil
 }

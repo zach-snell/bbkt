@@ -237,7 +237,9 @@ var sourceWriteCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Successfully wrote file '%s'\n", trailing[0])
+		PrintOrJSON(cmd, map[string]any{"path": trailing[0], "written": true}, func() {
+			fmt.Printf("Successfully wrote file '%s'\n", trailing[0])
+		})
 		return nil
 	},
 }
@@ -268,7 +270,9 @@ var sourceDeleteCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Successfully deleted file '%s'\n", trailing[0])
+		PrintOrJSON(cmd, map[string]any{"path": trailing[0], "deleted": true}, func() {
+			fmt.Printf("Successfully deleted file '%s'\n", trailing[0])
+		})
 		return nil
 	},
 }

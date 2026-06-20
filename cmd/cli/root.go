@@ -62,7 +62,11 @@ Credentials are stored at ~/.config/bbkt/credentials.json. Use
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		if jsonOut, _ := RootCmd.PersistentFlags().GetBool("json"); jsonOut {
+			PrintJSONError(err)
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		}
 		os.Exit(1)
 	}
 }
