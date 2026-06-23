@@ -41,14 +41,21 @@ var prCommentsListCmd = &cobra.Command{
 		}
 
 		page, pagelen := paginationArgs(cmd)
+		fetchAll, _ := cmd.Flags().GetBool("all")
 		client := getClient()
-		result, err := client.ListPRComments(bitbucket.ListPRCommentsArgs{
+		listArgs := bitbucket.ListPRCommentsArgs{
 			Workspace: workspace,
 			RepoSlug:  repoSlug,
 			PRID:      prID,
 			Page:      page,
 			Pagelen:   pagelen,
-		})
+		}
+		var result *bitbucket.Paginated[bitbucket.PRComment]
+		if fetchAll {
+			result, err = client.ListAllPRComments(listArgs)
+		} else {
+			result, err = client.ListPRComments(listArgs)
+		}
 		if err != nil {
 			return err
 		}
@@ -176,6 +183,7 @@ func init() {
 	prCommentsCmd.AddCommand(prCommentsResolveCmd)
 
 	addPaginationFlags(prCommentsListCmd)
+	prCommentsListCmd.Flags().Bool("all", false, "Fetch every comment page (follows pagination)")
 
 	prCommentsAddCmd.Flags().StringP("content", "m", "", "Comment body (markdown supported)")
 	prCommentsAddCmd.Flags().Int("parent", 0, "Reply to this comment ID (creates a threaded reply)")
