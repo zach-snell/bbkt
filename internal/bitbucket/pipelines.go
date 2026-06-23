@@ -119,8 +119,10 @@ func (c *Client) StopPipeline(args StopPipelineArgs) error {
 		return fmt.Errorf("workspace, repo_slug, and pipeline_uuid are required")
 	}
 
+	// Empty body + JSON Content-Type 400s on Bitbucket; send {} like the
+	// other body-less action endpoints (resolve/approve/decline).
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pipelines/%s/stopPipeline",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PipelineUUID), nil)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PipelineUUID), map[string]interface{}{})
 	return err
 }
 
