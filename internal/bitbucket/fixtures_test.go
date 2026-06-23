@@ -141,6 +141,47 @@ func TestFixture_InlineComments_NullFromParsesAsNil(t *testing.T) {
 	}
 }
 
+// TestFixture_Comments_ResolutionParses verifies that thread resolution decodes:
+// a resolved comment carries a non-nil Resolution with the resolver, while open
+// comments (explicit null or absent) decode to a nil Resolution. Regression for
+// the resolution-aware list (fields=+values.resolution) — without it the list
+// could not distinguish open from resolved threads.
+func TestFixture_Comments_ResolutionParses(t *testing.T) {
+	c := newVCRClient(t, "list_comments")
+
+	result, err := c.ListPRComments(ListPRCommentsArgs{
+		Workspace: "demo-ws",
+		RepoSlug:  "demo-repo",
+		PRID:      1,
+	})
+	if err != nil {
+		t.Fatalf("ListPRComments: %v", err)
+	}
+
+	byID := map[int]PRComment{}
+	for _, cm := range result.Values {
+		byID[cm.ID] = cm
+	}
+
+	resolved, ok := byID[1002]
+	if !ok {
+		t.Fatal("fixture must contain comment 1002")
+	}
+	if resolved.Resolution == nil {
+		t.Fatal("comment 1002 should be resolved (non-nil Resolution)")
+	}
+	if resolved.Resolution.User == nil || resolved.Resolution.User.DisplayName != "Zach Snell" {
+		t.Errorf("comment 1002 resolver = %+v, want display_name Zach Snell", resolved.Resolution.User)
+	}
+
+	if open, ok := byID[1001]; ok && open.Resolution != nil {
+		t.Errorf("comment 1001 (explicit null) should decode to nil Resolution, got %+v", open.Resolution)
+	}
+	if open, ok := byID[1003]; ok && open.Resolution != nil {
+		t.Errorf("comment 1003 (absent) should decode to nil Resolution, got %+v", open.Resolution)
+	}
+}
+
 // TestFixture_ListWorkspaces_FlattensWorkspaceAccess verifies that the
 // workspace_access envelope returned by /user/workspaces is flattened into
 // usable Workspace rows. Regression: before the fix, the listing decoded

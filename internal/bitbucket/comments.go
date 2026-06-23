@@ -28,8 +28,13 @@ func (c *Client) ListPRComments(args ListPRCommentsArgs) (*Paginated[PRComment],
 		page = 1
 	}
 
+	// resolutionFields asks Bitbucket to ADD the resolution object (and its
+	// resolver) to the default comments projection, which otherwise omits it.
+	// "+" must be percent-encoded as %2B; kept out of the format string so fmt
+	// doesn't treat %2B as a verb.
+	const resolutionFields = "&fields=%2Bvalues.resolution.user.display_name"
 	path := fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments?pagelen=%d&page=%d",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, pagelen, page)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, pagelen, page) + resolutionFields
 
 	return GetPaginated[PRComment](c, path)
 }
