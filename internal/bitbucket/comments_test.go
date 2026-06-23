@@ -135,3 +135,50 @@ func TestCreatePRComment_ValidatesRequiredFields(t *testing.T) {
 		})
 	}
 }
+
+// UnresolvePRComment reopens a thread by DELETEing the resolve sub-resource.
+// Verify it hits DELETE on .../comments/{id}/resolve so the new CLI subcommand
+// drives the same endpoint the MCP `unresolve` action already used.
+func TestUnresolvePRComment_SendsDelete(t *testing.T) {
+	var method, path string
+	c := newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
+		method = r.Method
+		path = r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	if err := c.UnresolvePRComment(CommentActionArgs{
+		Workspace: "w", RepoSlug: "r", PRID: 1, CommentID: 99,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if method != http.MethodDelete {
+		t.Errorf("method = %q, want DELETE", method)
+	}
+	if !strings.HasSuffix(path, "/pullrequests/1/comments/99/resolve") {
+		t.Errorf("path = %q, want .../comments/99/resolve", path)
+	}
+}
+
+func TestUnresolvePRComment_ValidatesRequiredFields(t *testing.T) {
+	c := NewClient("", "", "x") // no server — validation must short-circuit
+	cases := []struct {
+		name string
+		args CommentActionArgs
+	}{
+		{"missing workspace", CommentActionArgs{RepoSlug: "r", PRID: 1, CommentID: 9}},
+		{"missing repo", CommentActionArgs{Workspace: "w", PRID: 1, CommentID: 9}},
+		{"missing pr id", CommentActionArgs{Workspace: "w", RepoSlug: "r", CommentID: 9}},
+		{"missing comment id", CommentActionArgs{Workspace: "w", RepoSlug: "r", PRID: 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := c.UnresolvePRComment(tc.args); err == nil {
+				t.Fatalf("%s: expected validation error, got nil", tc.name)
+			} else if !strings.Contains(err.Error(), "required") {
+				t.Errorf("%s: expected 'required' in error, got: %v", tc.name, err)
+			}
+		})
+	}
+}

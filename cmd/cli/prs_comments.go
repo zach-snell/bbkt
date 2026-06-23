@@ -11,7 +11,7 @@ import (
 var prCommentsCmd = &cobra.Command{
 	Use:     "comments",
 	Aliases: []string{"comment"},
-	Short:   "List, add, and resolve pull request comments",
+	Short:   "List, add, resolve, and reopen pull request comments",
 	Long: `Manage comments on a pull request. Pass --file with --to (new
 file line) or --from (old file line) for inline diff comments;
 without those, the comment attaches to the PR overview. Use
@@ -22,7 +22,8 @@ Alias: comment`,
   bbkt prs comments add 42 -m "Looks good"
   bbkt prs comments add 42 -m "Nit" --file src/main.go --to 17
   bbkt prs comments add 42 -m "Reply" --parent 9876
-  bbkt prs comments resolve 42 9876`,
+  bbkt prs comments resolve 42 9876
+  bbkt prs comments unresolve 42 9876`,
 }
 
 var prCommentsListCmd = &cobra.Command{
@@ -169,11 +170,47 @@ var prCommentsResolveCmd = &cobra.Command{
 	},
 }
 
+var prCommentsUnresolveCmd = &cobra.Command{
+	Use:   "unresolve [workspace] [repo-slug] <pr-id> <comment-id>",
+	Short: "Reopen a resolved comment thread",
+	Args:  cobra.RangeArgs(2, 4),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 2)
+		if err != nil {
+			return err
+		}
+
+		prID, err := strconv.Atoi(trailing[0])
+		if err != nil {
+			return fmt.Errorf("invalid PR ID %q (must be a number)", trailing[0])
+		}
+
+		commentID, err := strconv.Atoi(trailing[1])
+		if err != nil {
+			return fmt.Errorf("invalid comment ID %q (must be a number)", trailing[1])
+		}
+
+		client := getClient()
+		if err := client.UnresolvePRComment(bitbucket.CommentActionArgs{
+			Workspace: workspace,
+			RepoSlug:  repoSlug,
+			PRID:      prID,
+			CommentID: commentID,
+		}); err != nil {
+			return err
+		}
+
+		fmt.Printf("Comment thread %d reopened (unresolved) successfully.\n", commentID)
+		return nil
+	},
+}
+
 func init() {
 	prsCmd.AddCommand(prCommentsCmd)
 	prCommentsCmd.AddCommand(prCommentsListCmd)
 	prCommentsCmd.AddCommand(prCommentsAddCmd)
 	prCommentsCmd.AddCommand(prCommentsResolveCmd)
+	prCommentsCmd.AddCommand(prCommentsUnresolveCmd)
 
 	addPaginationFlags(prCommentsListCmd)
 
