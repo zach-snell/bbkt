@@ -158,7 +158,7 @@ bbkt prs create --title <t> --source <branch> [--destination <branch>]
 bbkt prs merge <pr-id> [--strategy merge_commit|squash|fast_forward]
 bbkt prs approve <pr-id>
 bbkt prs decline <pr-id>
-bbkt prs comments [list | add | resolve]   # --content, --parent, --file, --to, --from
+bbkt prs comments [list | add | resolve | unresolve]   # --content, --parent, --file, --to, --from
 
 # Pipelines
 bbkt pipelines list                        # --status SUCCESSFUL|FAILED|INPROGRESS
