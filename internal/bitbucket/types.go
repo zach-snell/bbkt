@@ -147,17 +147,28 @@ type Participant struct {
 
 // PRComment represents a comment on a PR.
 type PRComment struct {
-	ID        int        `json:"id"`
-	Content   Content    `json:"content"`
-	User      *User      `json:"user"`
-	CreatedOn time.Time  `json:"created_on"`
-	UpdatedOn time.Time  `json:"updated_on"`
-	Inline    *Inline    `json:"inline"`
-	Parent    *ParentRef `json:"parent"`
-	Deleted   bool       `json:"deleted"`
-	Pending   bool       `json:"pending"`
-	Type      string     `json:"type"`
-	Links     Links      `json:"links"`
+	ID         int         `json:"id"`
+	Content    Content     `json:"content"`
+	User       *User       `json:"user"`
+	CreatedOn  time.Time   `json:"created_on"`
+	UpdatedOn  time.Time   `json:"updated_on"`
+	Inline     *Inline     `json:"inline"`
+	Parent     *ParentRef  `json:"parent"`
+	Deleted    bool        `json:"deleted"`
+	Pending    bool        `json:"pending"`
+	Type       string      `json:"type"`
+	Links      Links       `json:"links"`
+	Resolution *Resolution `json:"resolution,omitempty"`
+}
+
+// Resolution marks a comment thread as resolved. A nil/absent Resolution means
+// the thread is still open. Bitbucket omits this field from the default
+// comments projection — request it with fields=+values.resolution (done by
+// ListPRComments).
+type Resolution struct {
+	Type      string    `json:"type,omitempty"`
+	User      *User     `json:"user,omitempty"`
+	CreatedOn time.Time `json:"created_on,omitempty"`
 }
 
 // Content represents rich content with raw/markup/html.
