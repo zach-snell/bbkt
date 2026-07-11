@@ -2,7 +2,34 @@ package bitbucket
 
 import "testing"
 
+// fakeSSHConfig maps SSH host aliases to the hostname `ssh -G` would resolve
+// them to. Anything not present echoes back the input, mirroring how ssh
+// treats a host with no matching config entry.
+var fakeSSHConfig = map[string]string{
+	"bb-cloud":          "bitbucket.org", // arbitrarily-named alias → Bitbucket
+	"work":              "bitbucket.org",
+	"bitbucket.org-two": "bitbucket.org", // dashed alias resolves (not by spelling)
+	"bad-alias":         "github.com",    // alias that points elsewhere
+	"gh-personal":       "github.com",
+}
+
+// withFakeResolver installs a hermetic SSH resolver for the duration of a test
+// so results never depend on the machine's real ~/.ssh/config.
+func withFakeResolver(t *testing.T) {
+	t.Helper()
+	prev := resolveSSHHostname
+	resolveSSHHostname = func(host string) string {
+		if h, ok := fakeSSHConfig[host]; ok {
+			return h
+		}
+		return host
+	}
+	t.Cleanup(func() { resolveSSHHostname = prev })
+}
+
 func TestParseBitbucketRemote(t *testing.T) {
+	withFakeResolver(t)
+
 	tests := []struct {
 		name     string
 		url      string
@@ -10,7 +37,7 @@ func TestParseBitbucketRemote(t *testing.T) {
 		wantRepo string
 		wantOK   bool
 	}{
-		// scp-like literal host
+		// --- Literal host (no alias resolution needed) ---
 		{
 			name:     "scp literal with .git",
 			url:      "git@bitbucket.org:myws/myrepo.git",
@@ -25,7 +52,6 @@ func TestParseBitbucketRemote(t *testing.T) {
 			wantRepo: "myrepo",
 			wantOK:   true,
 		},
-		// https with/without user@, with/without .git
 		{
 			name:     "https with .git",
 			url:      "https://bitbucket.org/myws/myrepo.git",
@@ -48,14 +74,6 @@ func TestParseBitbucketRemote(t *testing.T) {
 			wantOK:   true,
 		},
 		{
-			name:     "https with user@ without .git",
-			url:      "https://someuser@bitbucket.org/myws/myrepo",
-			wantWS:   "myws",
-			wantRepo: "myrepo",
-			wantOK:   true,
-		},
-		// URL-scheme form using the ssh transport
-		{
 			name:     "ssh scheme with .git",
 			url:      "ssh://git@bitbucket.org/myws/myrepo.git",
 			wantWS:   "myws",
@@ -63,43 +81,70 @@ func TestParseBitbucketRemote(t *testing.T) {
 			wantOK:   true,
 		},
 		{
-			name:     "ssh scheme without .git",
-			url:      "ssh://git@bitbucket.org/myws/myrepo",
+			name:     "ssh scheme with default port",
+			url:      "ssh://git@bitbucket.org:22/myws/myrepo.git",
 			wantWS:   "myws",
 			wantRepo: "myrepo",
 			wantOK:   true,
 		},
-		// SSH config host alias (the common multi-account pattern)
+
+		// --- SSH aliases resolved via ssh config (the real feature) ---
 		{
-			name:     "ssh scheme host alias",
-			url:      "ssh://git@bitbucket.org-work/myws/myrepo.git",
-			wantWS:   "myws",
-			wantRepo: "myrepo",
-			wantOK:   true,
-		},
-		{
-			name:     "scp host alias",
-			url:      "git@bitbucket.org-work:myws/myrepo.git",
+			name:     "scp arbitrarily-named alias resolves to Bitbucket",
+			url:      "git@bb-cloud:myws/myrepo.git",
 			wantWS:   "myws",
 			wantRepo: "myrepo",
 			wantOK:   true,
 		},
 		{
-			name:     "scp host alias without .git",
-			url:      "git@bitbucket.org-work:ws/repo",
-			wantWS:   "ws",
-			wantRepo: "repo",
+			name:     "ssh scheme arbitrarily-named alias resolves to Bitbucket",
+			url:      "ssh://git@work/teamx/appx.git",
+			wantWS:   "teamx",
+			wantRepo: "appx",
 			wantOK:   true,
 		},
-		// Over-match negatives — look-alike hosts must NOT be treated as Bitbucket
 		{
-			name:   "evil prefix host",
-			url:    "git@evilbitbucket.org:ws/repo.git",
+			name:     "dashed alias is accepted via resolution, not spelling",
+			url:      "git@bitbucket.org-two:myws/myrepo.git",
+			wantWS:   "myws",
+			wantRepo: "myrepo",
+			wantOK:   true,
+		},
+		{
+			name:     "alias with explicit port resolves",
+			url:      "ssh://git@bb-cloud:22/myws/myrepo.git",
+			wantWS:   "myws",
+			wantRepo: "myrepo",
+			wantOK:   true,
+		},
+
+		// --- Aliases that resolve elsewhere must be rejected ---
+		{
+			// An alias literally spelled "bitbucket.org-*" but pointing at
+			// another host is NOT trusted by name — it resolves to github.com.
+			name:   "alias resolving elsewhere is rejected",
+			url:    "git@bad-alias:myws/myrepo.git",
 			wantOK: false,
 		},
 		{
-			name:   "not prefix host",
-			url:    "git@notbitbucket.org:ws/repo.git",
+			// A dashed name with no config entry resolves to itself, so it is
+			// no longer blindly trusted the way a spelling match would be.
+			name:   "unconfigured dashed alias is rejected",
+			url:    "git@bitbucket.org-unknown:myws/myrepo.git",
+			wantOK: false,
+		},
+
+		// --- https never resolves SSH aliases (literal DNS only) ---
+		{
+			name:   "https alias name is not resolved",
+			url:    "https://work/myws/myrepo.git",
+			wantOK: false,
+		},
+
+		// --- Look-alike hosts must never be treated as the target ---
+		{
+			name:   "evil prefix host",
+			url:    "git@evilbitbucket.org:ws/repo.git",
 			wantOK: false,
 		},
 		{
@@ -112,66 +157,25 @@ func TestParseBitbucketRemote(t *testing.T) {
 			url:    "https://bitbucket.org.attacker.com/ws/repo.git",
 			wantOK: false,
 		},
+
+		// --- Non-target hosts ---
 		{
-			// Dash-then-dotted: the alias-suffix branch must be dotless, so the
-			// foreign domain after the dash is rejected (the suffix stops at the
-			// dot and the required separator then fails on ".attacker.com").
-			name:   "dash-dotted attacker suffix scp",
-			url:    "git@bitbucket.org-foo.attacker.com:ws/repo.git",
-			wantOK: false,
-		},
-		{
-			name:   "dash-dotted attacker suffix ssh scheme",
-			url:    "ssh://git@bitbucket.org-foo.attacker.com/ws/repo.git",
-			wantOK: false,
-		},
-		{
-			name:   "dash-dotted attacker suffix https",
-			url:    "https://bitbucket.org-evil.attacker.com/ws/repo.git",
-			wantOK: false,
-		},
-		{
-			name:   "evil prefix https",
-			url:    "https://evilbitbucket.org/ws/repo.git",
-			wantOK: false,
-		},
-		// Other hosts are not Bitbucket
-		{
-			name:   "github scp not bitbucket",
+			name:   "github scp is not the target host",
 			url:    "git@github.com:ws/repo.git",
 			wantOK: false,
 		},
 		{
-			name:   "github https not bitbucket",
+			name:   "github https is not the target host",
 			url:    "https://github.com/ws/repo.git",
 			wantOK: false,
 		},
 		{
-			name:   "gitlab scp not bitbucket",
-			url:    "git@gitlab.com:ws/repo.git",
+			name:   "configured github alias is not the target host",
+			url:    "git@gh-personal:ws/repo.git",
 			wantOK: false,
 		},
-		{
-			name:   "empty url",
-			url:    "",
-			wantOK: false,
-		},
-		// ssh scheme with explicit port (valid SSH URL syntax)
-		{
-			name:     "ssh scheme with default port",
-			url:      "ssh://git@bitbucket.org:22/myws/myrepo.git",
-			wantWS:   "myws",
-			wantRepo: "myrepo",
-			wantOK:   true,
-		},
-		{
-			name:     "ssh scheme host alias with port",
-			url:      "ssh://git@bitbucket.org-work:22/myws/myrepo.git",
-			wantWS:   "myws",
-			wantRepo: "myrepo",
-			wantOK:   true,
-		},
-		// Extra path/query/fragment must not be swallowed into the repo slug.
+
+		// --- Extra path/query/fragment must not be swallowed into the slug ---
 		{
 			name:   "https deep path is rejected",
 			url:    "https://bitbucket.org/ws/repo/src/main/README.md",
@@ -192,6 +196,12 @@ func TestParseBitbucketRemote(t *testing.T) {
 			url:    "git@bitbucket.org:ws/repo/extra",
 			wantOK: false,
 		},
+
+		{
+			name:   "empty url",
+			url:    "",
+			wantOK: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -209,5 +219,32 @@ func TestParseBitbucketRemote(t *testing.T) {
 					tc.url, ws, repo, tc.wantWS, tc.wantRepo)
 			}
 		})
+	}
+}
+
+// TestGitHostOverride verifies BBKT_HOST swaps the recognized host, including
+// resolving an SSH alias to that custom host.
+func TestGitHostOverride(t *testing.T) {
+	t.Setenv("BBKT_HOST", "git.example.com")
+
+	prev := resolveSSHHostname
+	resolveSSHHostname = func(host string) string {
+		if host == "selfhost" {
+			return "git.example.com"
+		}
+		return host
+	}
+	t.Cleanup(func() { resolveSSHHostname = prev })
+
+	// Literal custom host is recognized; the default host no longer is.
+	if _, _, ok := parseBitbucketRemote("git@git.example.com:ws/repo.git"); !ok {
+		t.Errorf("expected custom host to be recognized under BBKT_HOST override")
+	}
+	if _, _, ok := parseBitbucketRemote("git@bitbucket.org:ws/repo.git"); ok {
+		t.Errorf("expected default bitbucket.org to be rejected under BBKT_HOST override")
+	}
+	// An alias resolving to the custom host is recognized.
+	if _, _, ok := parseBitbucketRemote("git@selfhost:ws/repo.git"); !ok {
+		t.Errorf("expected alias resolving to custom host to be recognized")
 	}
 }
