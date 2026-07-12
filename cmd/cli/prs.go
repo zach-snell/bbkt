@@ -169,6 +169,16 @@ var prsCreateCmd = &cobra.Command{
 
 		interactive := false
 		if title == "" || source == "" {
+			if outputJSON(cmd) {
+				var missing []string
+				if title == "" {
+					missing = append(missing, "--title")
+				}
+				if source == "" {
+					missing = append(missing, "--source")
+				}
+				return fmt.Errorf("missing required flag(s) under --json: %s (interactive prompts are disabled in --json mode)", strings.Join(missing, ", "))
+			}
 			interactive = true
 			fmt.Println("Missing required arguments. Entering interactive mode...")
 

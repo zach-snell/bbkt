@@ -22,7 +22,7 @@ Alias: pipe`,
 	Example: `  bbkt pipelines list                         # recent runs on current repo
   bbkt pipelines list --status FAILED         # only failed
   bbkt pipelines trigger -r main              # run default pipeline on main
-  bbkt pipelines trigger -r feature/x -p deploy
+  bbkt pipelines trigger -r feature/x --pattern deploy   # run a custom: pipeline
   bbkt pipelines steps {pipeline-uuid}
   bbkt pipelines log {pipeline-uuid} {step-uuid}
   bbkt pipelines stop {pipeline-uuid}`,
@@ -151,6 +151,9 @@ var pipelinesTriggerCmd = &cobra.Command{
 
 		interactive := false
 		if refName == "" {
+			if outputJSON(cmd) {
+				return fmt.Errorf("missing required flag --ref-name under --json (interactive prompts are disabled in --json mode)")
+			}
 			interactive = true
 			fmt.Println("Missing required arguments. Entering interactive mode...")
 
@@ -339,5 +342,7 @@ func init() {
 
 	pipelinesTriggerCmd.Flags().StringP("ref-name", "r", "", "Branch or tag name to run pipeline on")
 	pipelinesTriggerCmd.Flags().StringP("ref-type", "t", "branch", "Reference type: branch | tag | bookmark")
-	pipelinesTriggerCmd.Flags().StringP("pattern", "p", "", "Name of a 'custom:' pipeline from bitbucket-pipelines.yml (omit to run the branch's default pipeline)")
+	// No -p shorthand: it collides with the global persistent --profile (-p),
+	// which panics cobra when the flags merge. Long --pattern only.
+	pipelinesTriggerCmd.Flags().String("pattern", "", "Name of a 'custom:' pipeline from bitbucket-pipelines.yml (omit to run the branch's default pipeline)")
 }

@@ -46,7 +46,8 @@ to explicitly disable additional tools.`,
 
 func init() {
 	RootCmd.AddCommand(mcpCmd)
-	mcpCmd.Flags().IntVarP(&port, "port", "p", 0, "Port to listen on for HTTP Streamable transport")
+	// No -p shorthand: it collides with the global persistent --profile (-p).
+	mcpCmd.Flags().IntVar(&port, "port", 0, "Port to listen on for HTTP Streamable transport")
 	mcpCmd.Flags().BoolVar(&noAuth, "no-auth", false, "Start server without authentication (tools will return auth-required errors when called)")
 }
 
