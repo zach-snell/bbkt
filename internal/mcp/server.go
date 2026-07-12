@@ -206,6 +206,11 @@ func registerToolsUnauthenticated(s *mcp.Server) {
 	})
 
 	// ─── Issues ──────────────────────────────────────────────────────
+	addUnauthenticatedTool[APIRequestArgs](s, mcp.Tool{
+		Name:        "bitbucket_api",
+		Description: "Authenticated passthrough to ANY Bitbucket Cloud REST API v2 endpoint not covered by the manage_* tools above (e.g. pipelines-config/OIDC, webhooks, branch restrictions). Prefer a typed manage_* tool when one fits; use this for the long tail instead of calling the API yourself. Reads (GET/HEAD) work by default; write methods are rejected unless BBKT_API_ALLOW_WRITE is set on the server. Supports pagination and returns the raw HTTP status + JSON body.",
+	})
+
 	addUnauthenticatedTool[ManageIssuesArgs](s, mcp.Tool{
 		Name:        "manage_issues",
 		Description: "Unified tool for managing repository issues (list, get, create, update)",
@@ -279,4 +284,10 @@ func registerTools(s *mcp.Server, c *bitbucket.Client) {
 		Name:        "manage_issues",
 		Description: "Unified tool for managing repository issues (list, get, create, update)",
 	}, ManageIssuesHandler(c))
+
+	// ─── Raw API passthrough (escape hatch) ──────────────────────────
+	addTool(s, disabled, tokenScopes, mcp.Tool{
+		Name:        "bitbucket_api",
+		Description: "Authenticated passthrough to ANY Bitbucket Cloud REST API v2 endpoint not covered by the manage_* tools above (e.g. pipelines-config/OIDC, webhooks, branch restrictions). Prefer a typed manage_* tool when one fits; use this for the long tail instead of calling the API yourself. Reads (GET/HEAD) work by default; write methods are rejected unless BBKT_API_ALLOW_WRITE is set on the server. Supports pagination and returns the raw HTTP status + JSON body.",
+	}, APIRequestHandler(c))
 }
