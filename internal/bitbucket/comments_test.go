@@ -135,3 +135,37 @@ func TestCreatePRComment_ValidatesRequiredFields(t *testing.T) {
 		})
 	}
 }
+
+// Regression: ResolvePRComment posted a nil body with a JSON Content-Type,
+// which Bitbucket rejects with 400. It must send an empty JSON object {}
+// (matching the approve/decline body-less action convention).
+func TestResolvePRComment_SendsEmptyJSONBody(t *testing.T) {
+	var method, path, body, ctype string
+	c := newBearerClient(t, func(w http.ResponseWriter, r *http.Request) {
+		method = r.Method
+		path = r.URL.Path
+		ctype = r.Header.Get("Content-Type")
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	if err := c.ResolvePRComment(CommentActionArgs{
+		Workspace: "w", RepoSlug: "r", PRID: 1, CommentID: 99,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if method != http.MethodPost {
+		t.Errorf("method = %q, want POST", method)
+	}
+	if !strings.HasSuffix(path, "/pullrequests/1/comments/99/resolve") {
+		t.Errorf("path = %q, want .../comments/99/resolve", path)
+	}
+	if strings.TrimSpace(body) != "{}" {
+		t.Errorf("resolve body = %q, want {} (empty body 400s on Bitbucket)", body)
+	}
+	if ctype != "application/json" {
+		t.Errorf("content-type = %q, want application/json", ctype)
+	}
+}

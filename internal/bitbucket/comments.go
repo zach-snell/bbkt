@@ -144,8 +144,11 @@ func (c *Client) ResolvePRComment(args CommentActionArgs) error {
 		return fmt.Errorf("workspace, repo_slug, pr_id, and comment_id are required")
 	}
 
+	// Bitbucket's resolve endpoint rejects an empty body sent with a JSON
+	// Content-Type (400). Send an empty JSON object, matching the
+	// approve/decline action convention.
 	_, err := c.Post(fmt.Sprintf("/repositories/%s/%s/pullrequests/%d/comments/%d/resolve",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID), nil)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.PRID, args.CommentID), map[string]interface{}{})
 	return err
 }
 
