@@ -34,6 +34,37 @@ func (c *Client) ListPRComments(args ListPRCommentsArgs) (*Paginated[PRComment],
 	return GetPaginated[PRComment](c, path)
 }
 
+// ListAllPRComments fetches every page of comments, following the paginated
+// `next` cursor, and returns them merged into a single result. Use when a PR
+// may carry more comments than one page (default page size 50).
+func (c *Client) ListAllPRComments(args ListPRCommentsArgs) (*Paginated[PRComment], error) {
+	page := args.Page
+	if page == 0 {
+		page = 1
+	}
+
+	var all []PRComment
+	var last *Paginated[PRComment]
+	for {
+		args.Page = page
+		res, err := c.ListPRComments(args)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, res.Values...)
+		last = res
+		if res.Next == "" {
+			break
+		}
+		page++
+	}
+
+	last.Values = all
+	last.Size = len(all)
+	last.Next = ""
+	return last, nil
+}
+
 type CreatePRCommentArgs struct {
 	Workspace string `json:"workspace" jsonschema:"Workspace slug"`
 	RepoSlug  string `json:"repo_slug" jsonschema:"Repository slug"`

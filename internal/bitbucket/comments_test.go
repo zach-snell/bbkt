@@ -135,3 +135,32 @@ func TestCreatePRComment_ValidatesRequiredFields(t *testing.T) {
 		})
 	}
 }
+
+// TestListAllPRComments_WalksPages verifies --all follows the paginated next
+// cursor across pages and merges every comment into one result.
+func TestListAllPRComments_WalksPages(t *testing.T) {
+	c := newVCRClient(t, "list_comments_paged")
+
+	res, err := c.ListAllPRComments(ListPRCommentsArgs{
+		Workspace: "demo-ws",
+		RepoSlug:  "demo-repo",
+		PRID:      1,
+	})
+	if err != nil {
+		t.Fatalf("ListAllPRComments: %v", err)
+	}
+
+	if len(res.Values) != 2 {
+		t.Fatalf("merged comments = %d, want 2 (one per page)", len(res.Values))
+	}
+	if res.Next != "" {
+		t.Errorf("merged result Next = %q, want empty", res.Next)
+	}
+	got := map[int]bool{}
+	for _, cm := range res.Values {
+		got[cm.ID] = true
+	}
+	if !got[2001] || !got[2002] {
+		t.Errorf("want comments 2001 (page 1) and 2002 (page 2), got %v", got)
+	}
+}

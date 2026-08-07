@@ -1,0 +1,95 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+          proto: HTTP/1.1
+          proto_major: 1
+          proto_minor: 1
+          content_length: 0
+          host: api.bitbucket.org
+          url: https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests/1/comments?pagelen=50&page=1
+          method: GET
+          headers:
+              Accept:
+                  - application/json
+      response:
+          proto: HTTP/2.0
+          proto_major: 2
+          proto_minor: 0
+          content_length: -1
+          uncompressed: true
+          status: 200 OK
+          code: 200
+          duration: 10ms
+          headers:
+              Content-Type:
+                  - application/json; charset=utf-8
+          body: |
+              {
+                "pagelen": 1,
+                "size": 2,
+                "page": 1,
+                "next": "https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests/1/comments?pagelen=50&page=2",
+                "values": [
+                  {
+                    "id": 2001,
+                    "content": {"raw": "page one comment"},
+                    "user": {"display_name": "Zach Snell", "type": "user", "links": {}},
+                    "created_on": "2026-03-05T09:00:00.000000+00:00",
+                    "updated_on": "2026-03-05T09:00:00.000000+00:00",
+                    "inline": null,
+                    "parent": null,
+                    "deleted": false,
+                    "pending": false,
+                    "type": "pullrequest_comment",
+                    "links": {}
+                  }
+                ]
+              }
+    - id: 1
+      request:
+          proto: HTTP/1.1
+          proto_major: 1
+          proto_minor: 1
+          content_length: 0
+          host: api.bitbucket.org
+          url: https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests/1/comments?pagelen=50&page=2
+          method: GET
+          headers:
+              Accept:
+                  - application/json
+      response:
+          proto: HTTP/2.0
+          proto_major: 2
+          proto_minor: 0
+          content_length: -1
+          uncompressed: true
+          status: 200 OK
+          code: 200
+          duration: 10ms
+          headers:
+              Content-Type:
+                  - application/json; charset=utf-8
+          body: |
+              {
+                "pagelen": 1,
+                "size": 2,
+                "page": 2,
+                "next": "",
+                "values": [
+                  {
+                    "id": 2002,
+                    "content": {"raw": "page two comment"},
+                    "user": {"display_name": "Aulia Lionar", "type": "user", "links": {}},
+                    "created_on": "2026-03-05T09:05:00.000000+00:00",
+                    "updated_on": "2026-03-05T09:05:00.000000+00:00",
+                    "inline": null,
+                    "parent": null,
+                    "deleted": false,
+                    "pending": false,
+                    "type": "pullrequest_comment",
+                    "links": {}
+                  }
+                ]
+              }
