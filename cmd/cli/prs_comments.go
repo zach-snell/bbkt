@@ -59,7 +59,7 @@ var prCommentsListCmd = &cobra.Command{
 				return
 			}
 			t := NewTable()
-			t.Header("ID", "Author", "Content", "Created")
+			t.Header("ID", "Author", "Resolved", "Content", "Created")
 			for _, c := range result.Values {
 				author := "-"
 				if c.User != nil {
@@ -69,9 +69,17 @@ var prCommentsListCmd = &cobra.Command{
 				if c.Deleted {
 					content = "(deleted)"
 				}
+				resolved := "-"
+				if c.Resolution != nil {
+					resolved = "✓"
+					if c.Resolution.User != nil && c.Resolution.User.DisplayName != "" {
+						resolved = "✓ " + c.Resolution.User.DisplayName
+					}
+				}
 				t.Row(
 					fmt.Sprintf("%d", c.ID),
 					author,
+					resolved,
 					content,
 					FormatTime(c.CreatedOn),
 				)

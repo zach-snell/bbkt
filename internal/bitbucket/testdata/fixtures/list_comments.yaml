@@ -1,74 +1,76 @@
 ---
 version: 2
 interactions:
-  - id: 0
-    request:
-      proto: HTTP/1.1
-      proto_major: 1
-      proto_minor: 1
-      content_length: 0
-      host: api.bitbucket.org
-      url: https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests/1/comments?pagelen=50&page=1
-      method: GET
-      headers:
-        Accept:
-          - application/json
-    response:
-      proto: HTTP/2.0
-      proto_major: 2
-      proto_minor: 0
-      content_length: -1
-      uncompressed: true
-      status: 200 OK
-      code: 200
-      duration: 33ms
-      headers:
-        Content-Type:
-          - application/json; charset=utf-8
-      body: |
-        {
-          "pagelen": 50,
-          "size": 3,
-          "page": 1,
-          "values": [
-            {
-              "id": 1001,
-              "content": {"raw": "general comment with no anchor", "markup": "markdown", "html": "<p>general comment with no anchor</p>"},
-              "user": {"uuid": "{u1}", "display_name": "Zach Snell", "type": "user", "links": {}},
-              "created_on": "2026-03-05T09:00:00.000000+00:00",
-              "updated_on": "2026-03-05T09:00:00.000000+00:00",
-              "inline": null,
-              "parent": null,
-              "deleted": false,
-              "pending": false,
-              "type": "pullrequest_comment",
-              "links": {}
-            },
-            {
-              "id": 1002,
-              "content": {"raw": "nit on new line", "markup": "markdown", "html": "<p>nit on new line</p>"},
-              "user": {"uuid": "{u2}", "display_name": "Aulia Lionar", "type": "user", "links": {}},
-              "created_on": "2026-03-05T09:05:00.000000+00:00",
-              "updated_on": "2026-03-05T09:05:00.000000+00:00",
-              "inline": {"from": null, "to": 42, "path": "internal/bitbucket/client.go"},
-              "parent": null,
-              "deleted": false,
-              "pending": false,
-              "type": "pullrequest_comment",
-              "links": {}
-            },
-            {
-              "id": 1003,
-              "content": {"raw": "why was this removed?", "markup": "markdown", "html": "<p>why was this removed?</p>"},
-              "user": {"uuid": "{u3}", "display_name": "Vitautas Brazas", "type": "user", "links": {}},
-              "created_on": "2026-03-05T09:10:00.000000+00:00",
-              "updated_on": "2026-03-05T09:10:00.000000+00:00",
-              "inline": {"from": 7, "to": null, "path": "internal/bitbucket/types.go"},
-              "parent": {"id": 1002},
-              "deleted": false,
-              "pending": false,
-              "type": "pullrequest_comment",
-              "links": {}
-            }
-          ]
-        }
+    - id: 0
+      request:
+          proto: HTTP/1.1
+          proto_major: 1
+          proto_minor: 1
+          content_length: 0
+          host: api.bitbucket.org
+          url: https://api.bitbucket.org/2.0/repositories/demo-ws/demo-repo/pullrequests/1/comments?pagelen=50&page=1&fields=%2Bvalues.resolution.user.display_name
+          method: GET
+          headers:
+              Accept:
+                  - application/json
+      response:
+          proto: HTTP/2.0
+          proto_major: 2
+          proto_minor: 0
+          content_length: -1
+          uncompressed: true
+          status: 200 OK
+          code: 200
+          duration: 33ms
+          headers:
+              Content-Type:
+                  - application/json; charset=utf-8
+          body: |
+              {
+                "pagelen": 50,
+                "size": 3,
+                "page": 1,
+                "values": [
+                  {
+                    "id": 1001,
+                    "content": {"raw": "general comment with no anchor", "markup": "markdown", "html": "<p>general comment with no anchor</p>"},
+                    "user": {"uuid": "{u1}", "display_name": "Zach Snell", "type": "user", "links": {}},
+                    "created_on": "2026-03-05T09:00:00.000000+00:00",
+                    "updated_on": "2026-03-05T09:00:00.000000+00:00",
+                    "inline": null,
+                    "parent": null,
+                    "deleted": false,
+                    "pending": false,
+                    "type": "pullrequest_comment",
+                    "links": {},
+                    "resolution": null
+                  },
+                  {
+                    "id": 1002,
+                    "content": {"raw": "nit on new line", "markup": "markdown", "html": "<p>nit on new line</p>"},
+                    "user": {"uuid": "{u2}", "display_name": "Aulia Lionar", "type": "user", "links": {}},
+                    "created_on": "2026-03-05T09:05:00.000000+00:00",
+                    "updated_on": "2026-03-05T09:05:00.000000+00:00",
+                    "inline": {"from": null, "to": 42, "path": "internal/bitbucket/client.go"},
+                    "parent": null,
+                    "deleted": false,
+                    "pending": false,
+                    "type": "pullrequest_comment",
+                    "links": {},
+                    "resolution": {"type": "resolution_resolved", "user": {"display_name": "Zach Snell", "type": "user"}, "created_on": "2026-03-06T10:00:00.000000+00:00"}
+                  },
+                  {
+                    "id": 1003,
+                    "content": {"raw": "why was this removed?", "markup": "markdown", "html": "<p>why was this removed?</p>"},
+                    "user": {"uuid": "{u3}", "display_name": "Vitautas Brazas", "type": "user", "links": {}},
+                    "created_on": "2026-03-05T09:10:00.000000+00:00",
+                    "updated_on": "2026-03-05T09:10:00.000000+00:00",
+                    "inline": {"from": 7, "to": null, "path": "internal/bitbucket/types.go"},
+                    "parent": {"id": 1002},
+                    "deleted": false,
+                    "pending": false,
+                    "type": "pullrequest_comment",
+                    "links": {}
+                  }
+                ]
+              }
