@@ -42,7 +42,7 @@ func TestRequestPaginated_MergesAndCaps(t *testing.T) {
 			writeHits++
 		}
 		page := 1
-		fmt.Sscanf(r.URL.Query().Get("page"), "%d", &page)
+		_, _ = fmt.Sscanf(r.URL.Query().Get("page"), "%d", &page)
 		if page < 1 {
 			page = 1
 		}
@@ -53,7 +53,7 @@ func TestRequestPaginated_MergesAndCaps(t *testing.T) {
 			resp["next"] = fmt.Sprintf("/2.0/items?page=%d", page+1)
 		}
 		b, _ := json.Marshal(resp)
-		w.Write(b)
+		_, _ = w.Write(b)
 	}))
 	defer srv.Close()
 	c := newTestClient(srv.URL)
