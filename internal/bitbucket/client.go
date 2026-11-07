@@ -428,9 +428,16 @@ func GetJSON[T any](c *Client, path string) (*T, error) {
 	return &result, nil
 }
 
-// QueryEscape URL-encodes a string for use in paths.
+// QueryEscape URL-encodes a string for use as a path segment.
 func QueryEscape(s string) string {
 	return url.PathEscape(s)
+}
+
+// QueryValueEscape URL-encodes a string for use as a query-string value, so
+// reserved characters such as & = + are percent-encoded. A space stays %20
+// rather than becoming +, matching what these values have always sent.
+func QueryValueEscape(s string) string {
+	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
 }
 
 func parseAPIError(statusCode int, body []byte) error {

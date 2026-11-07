@@ -32,10 +32,10 @@ func (c *Client) ListBranches(args ListBranchesArgs) (*Paginated[Branch], error)
 	path := fmt.Sprintf("/repositories/%s/%s/refs/branches?pagelen=%d&page=%d",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), pagelen, page)
 	if args.Query != "" {
-		path += "&q=" + QueryEscape(args.Query)
+		path += "&q=" + QueryValueEscape(args.Query)
 	}
 	if args.Sort != "" {
-		path += "&sort=" + QueryEscape(args.Sort)
+		path += "&sort=" + QueryValueEscape(args.Sort)
 	}
 
 	return GetPaginated[Branch](c, path)

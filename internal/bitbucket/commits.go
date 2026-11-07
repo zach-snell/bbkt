@@ -40,13 +40,13 @@ func (c *Client) ListCommits(args ListCommitsArgs) (*Paginated[Commit], error) {
 	}
 
 	if args.Include != "" {
-		endpoint += "&include=" + QueryEscape(args.Include)
+		endpoint += "&include=" + QueryValueEscape(args.Include)
 	}
 	if args.Exclude != "" {
-		endpoint += "&exclude=" + QueryEscape(args.Exclude)
+		endpoint += "&exclude=" + QueryValueEscape(args.Exclude)
 	}
 	if args.Path != "" {
-		endpoint += "&path=" + QueryEscape(args.Path)
+		endpoint += "&path=" + QueryValueEscape(args.Path)
 	}
 
 	return GetPaginated[Commit](c, endpoint)
@@ -84,7 +84,7 @@ func (c *Client) GetDiff(args GetDiffArgs) ([]byte, error) {
 	endpoint := fmt.Sprintf("/repositories/%s/%s/diff/%s",
 		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), args.Spec)
 	if args.Path != "" {
-		endpoint += "?path=" + args.Path
+		endpoint += "?path=" + QueryValueEscape(args.Path)
 	}
 
 	raw, _, err := c.GetRaw(endpoint)

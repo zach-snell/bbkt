@@ -66,16 +66,16 @@ func (c *Client) ListIssues(args ListIssuesArgs) (*Paginated[Issue], error) {
 	}
 
 	if len(queries) > 0 {
-		path += "&q=" + QueryEscape(joinQueries(queries, " AND "))
+		path += "&q=" + QueryValueEscape(joinQueries(queries, " AND "))
 	}
 
 	if args.Search != "" {
 		// q search string is separate from general query
-		path += "&search=" + QueryEscape(args.Search)
+		path += "&search=" + QueryValueEscape(args.Search)
 	}
 
 	if args.Sort != "" {
-		path += "&sort=" + QueryEscape(args.Sort)
+		path += "&sort=" + QueryValueEscape(args.Sort)
 	}
 
 	return GetPaginated[Issue](c, path)

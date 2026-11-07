@@ -34,10 +34,10 @@ func (c *Client) ListPipelines(args ListPipelinesArgs) (*Paginated[Pipeline], er
 	}
 
 	path := fmt.Sprintf("/repositories/%s/%s/pipelines?pagelen=%d&page=%d&sort=%s",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), pagelen, page, QueryEscape(sort))
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), pagelen, page, QueryValueEscape(sort))
 
 	if args.Status != "" {
-		path += "&status=" + QueryEscape(args.Status)
+		path += "&status=" + QueryValueEscape(args.Status)
 	}
 
 	return GetPaginated[Pipeline](c, path)

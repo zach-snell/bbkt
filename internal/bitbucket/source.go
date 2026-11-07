@@ -132,7 +132,7 @@ func (c *Client) SearchCode(args SearchCodeArgs) ([]byte, error) {
 	}
 
 	endpoint := fmt.Sprintf("/repositories/%s/%s/search/code?search_query=%s&pagelen=%d&page=%d",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryEscape(args.SearchQuery), pagelen, page)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryValueEscape(args.SearchQuery), pagelen, page)
 
 	return c.Get(endpoint)
 }

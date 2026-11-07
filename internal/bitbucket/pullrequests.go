@@ -34,9 +34,9 @@ func (c *Client) ListPullRequests(args ListPullRequestsArgs) (*Paginated[PullReq
 	}
 
 	path := fmt.Sprintf("/repositories/%s/%s/pullrequests?state=%s&pagelen=%d&page=%d",
-		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), state, pagelen, page)
+		QueryEscape(args.Workspace), QueryEscape(args.RepoSlug), QueryValueEscape(state), pagelen, page)
 	if args.Query != "" {
-		path += "&q=" + QueryEscape(args.Query)
+		path += "&q=" + QueryValueEscape(args.Query)
 	}
 
 	return GetPaginated[PullRequest](c, path)

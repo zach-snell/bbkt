@@ -31,13 +31,13 @@ func (c *Client) ListRepositories(args ListRepositoriesArgs) (*Paginated[Reposit
 
 	path := fmt.Sprintf("/repositories/%s?pagelen=%d&page=%d", QueryEscape(args.Workspace), pagelen, page)
 	if args.Query != "" {
-		path += "&q=" + QueryEscape(args.Query)
+		path += "&q=" + QueryValueEscape(args.Query)
 	}
 	if args.Role != "" {
-		path += "&role=" + QueryEscape(args.Role)
+		path += "&role=" + QueryValueEscape(args.Role)
 	}
 	if args.Sort != "" {
-		path += "&sort=" + QueryEscape(args.Sort)
+		path += "&sort=" + QueryValueEscape(args.Sort)
 	}
 
 	return GetPaginated[Repository](c, path)
