@@ -113,6 +113,7 @@ bbkt pipelines list [workspace] [repo-slug]         # --status SUCCESSFUL|FAILED
 bbkt pipelines get [workspace] [repo-slug] <pipeline-uuid>
 bbkt pipelines trigger [workspace] [repo-slug] --ref-name <branch> [--ref-type branch|tag] [--pattern <custom-name>]
 bbkt pipelines stop [workspace] [repo-slug] <pipeline-uuid>
+bbkt pipelines watch [workspace] [repo-slug] <pipeline-uuid>   # --interval 15s --timeout 0 --log-lines 30; exit 0 only on SUCCESSFUL
 bbkt pipelines steps [workspace] [repo-slug] <pipeline-uuid>
 bbkt pipelines log [workspace] [repo-slug] <pipeline-uuid> <step-uuid>
 ```

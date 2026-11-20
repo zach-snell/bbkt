@@ -189,7 +189,7 @@ func toolDefs() []toolDef {
 
 		// ─── Pipelines ───────────────────────────────────────────────────
 		defineTool("manage_pipelines",
-			"Unified tool for managing Bitbucket Pipelines (list, get, trigger, stop, list-steps, get-step-log)",
+			"Unified tool for managing Bitbucket Pipelines (list, get, trigger, stop, wait, list-steps, get-step-log)",
 			ManagePipelinesHandler),
 
 		// ─── Issues ──────────────────────────────────────────────────────

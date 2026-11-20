@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/zach-snell/bbkt/internal/bitbucket"
 )
 
 type ManagePipelinesArgs struct {
-	Action       string `json:"action" jsonschema:"Action to perform: 'list', 'get', 'trigger', 'stop', 'list-steps', 'get-step-log'" jsonschema_enum:"list,get,trigger,stop,list-steps,get-step-log"`
+	Action       string `json:"action" jsonschema:"Action to perform: 'list', 'get', 'trigger', 'stop', 'wait', 'list-steps', 'get-step-log'" jsonschema_enum:"list,get,trigger,stop,wait,list-steps,get-step-log"`
+	WaitSeconds  int    `json:"wait_seconds,omitempty" jsonschema:"For 'wait': max seconds to block until the run completes or pauses (default 300, max 1800). On timeout the current run is returned; call again to keep waiting"`
 	Workspace    string `json:"workspace" jsonschema:"Workspace slug"`
 	RepoSlug     string `json:"repo_slug" jsonschema:"Repository slug"`
 	PipelineUUID string `json:"pipeline_uuid,omitempty" jsonschema:"Pipeline UUID"`
@@ -88,6 +90,33 @@ func ManagePipelinesHandler(c *bitbucket.Client) func(context.Context, *mcp.Call
 				return ToolResultError(fmt.Sprintf("failed to stop pipeline: %v", err)), nil, nil
 			}
 			return ToolResultText("Pipeline stopped successfully"), nil, nil
+
+		case "wait":
+			if args.PipelineUUID == "" {
+				return ToolResultError("pipeline_uuid is required for 'wait' action"), nil, nil
+			}
+			secs := args.WaitSeconds
+			if secs <= 0 {
+				secs = 300
+			}
+			secs = min(secs, 1800)
+			pipe, err := c.WaitPipeline(ctx, bitbucket.WaitPipelineArgs{
+				GetPipelineArgs: bitbucket.GetPipelineArgs{
+					Workspace:    args.Workspace,
+					RepoSlug:     args.RepoSlug,
+					PipelineUUID: args.PipelineUUID,
+				},
+				Timeout: time.Duration(secs) * time.Second,
+			})
+			if pipe == nil {
+				return ToolResultError(fmt.Sprintf("failed to wait for pipeline: %v", err)), nil, nil
+			}
+			data, _ := json.MarshalIndent(pipe, "", "  ")
+			if err != nil {
+				// Timed out (or cancelled): still useful to hand back the latest state.
+				return ToolResultText(fmt.Sprintf("Pipeline not finished after waiting (%v). Latest state:\n%s", err, data)), nil, nil
+			}
+			return ToolResultText(string(data)), nil, nil
 
 		case "list-steps":
 			if args.PipelineUUID == "" {

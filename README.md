@@ -176,6 +176,7 @@ bbkt pipelines list                        # --status SUCCESSFUL|FAILED|INPROGRE
 bbkt pipelines get <pipeline-uuid>
 bbkt pipelines trigger --ref-name <branch> [--ref-type branch|tag|bookmark]
 bbkt pipelines stop <pipeline-uuid>
+bbkt pipelines watch <pipeline-uuid>      # follow until done; exit 0 only on SUCCESSFUL
 bbkt pipelines steps <pipeline-uuid>
 bbkt pipelines log <pipeline-uuid> <step-uuid>
 
@@ -301,7 +302,7 @@ When `BITBUCKET_ACCESS_TOKEN` *or* (`BITBUCKET_USERNAME` + `BITBUCKET_API_TOKEN`
 | `manage_source` | read, list_directory, get_history, search, write, delete | `repository` |
 | `manage_pull_requests` | list, get, create, update, merge, approve, unapprove, decline, diff, diffstat, commits | `pullrequest` |
 | `manage_pr_comments` | list, create, update, delete, resolve, unresolve | `pullrequest` |
-| `manage_pipelines` | list, get, trigger, stop, list-steps, get-step-log | `pipeline` |
+| `manage_pipelines` | list, get, trigger, stop, wait, list-steps, get-step-log | `pipeline` |
 | `manage_issues` | list, get, create, update | `issue` |
 | `bitbucket_api` | any v2 endpoint; reads only unless `BBKT_API_ALLOW_WRITE=1` | — |
 

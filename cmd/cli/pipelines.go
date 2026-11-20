@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -23,6 +25,7 @@ Alias: pipe`,
   bbkt pipelines list --status FAILED         # only failed
   bbkt pipelines trigger -r main              # run default pipeline on main
   bbkt pipelines trigger -r feature/x --pattern deploy   # run a custom: pipeline
+  bbkt pipelines watch {pipeline-uuid}        # follow until done; non-zero exit unless SUCCESSFUL
   bbkt pipelines steps {pipeline-uuid}
   bbkt pipelines log {pipeline-uuid} {step-uuid}
   bbkt pipelines stop {pipeline-uuid}`,
@@ -327,8 +330,113 @@ var pipelinesLogsCmd = &cobra.Command{
 	},
 }
 
+func pipeStateLabel(s *bitbucket.PipeState) string {
+	switch {
+	case s == nil:
+		return "-"
+	case s.Result != nil:
+		return s.Result.Name
+	case s.Stage != nil && s.Stage.Name != "" && s.Stage.Name != s.Name:
+		return s.Name + "/" + s.Stage.Name
+	default:
+		return s.Name
+	}
+}
+
+// lastLines returns at most n trailing lines of s.
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+var pipelinesWatchCmd = &cobra.Command{
+	Use:   "watch [workspace] [repo-slug] <pipeline-uuid>",
+	Short: "Follow a pipeline run until it finishes; exits non-zero unless it succeeds",
+	Long: `Poll a pipeline run and print each step as its state changes. Returns when the
+run completes or pauses on a manual step. On failure the tail of each failed
+step's log is printed. Exit status is 0 only for a SUCCESSFUL run.`,
+	Args: cobra.RangeArgs(1, 3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		workspace, repoSlug, trailing, err := ParseArgs(cmd, args, 1)
+		if err != nil {
+			return err
+		}
+		interval, _ := cmd.Flags().GetDuration("interval")
+		timeout, _ := cmd.Flags().GetDuration("timeout")
+		logLines, _ := cmd.Flags().GetInt("log-lines")
+		jsonOut := outputJSON(cmd)
+
+		client := getClient()
+		stepsArgs := bitbucket.ListPipelineStepsArgs{Workspace: workspace, RepoSlug: repoSlug, PipelineUUID: trailing[0]}
+		var steps []bitbucket.PipelineStep
+		seen := map[string]string{}
+
+		p, err := client.WaitPipeline(cmd.Context(), bitbucket.WaitPipelineArgs{
+			GetPipelineArgs: bitbucket.GetPipelineArgs{Workspace: workspace, RepoSlug: repoSlug, PipelineUUID: trailing[0]},
+			Interval:        interval,
+			Timeout:         timeout,
+			OnPoll: func(p *bitbucket.Pipeline) error {
+				res, err := client.ListAllPipelineSteps(stepsArgs)
+				if err != nil {
+					return nil // step progress is best-effort; the run state drives the wait
+				}
+				steps = res.Values
+				for _, s := range steps {
+					label := pipeStateLabel(s.State)
+					if seen[s.UUID] != label && !jsonOut {
+						fmt.Printf("%s  #%d  %-45s %s\n", time.Now().Format("15:04:05"), p.BuildNumber, s.Name, label)
+					}
+					seen[s.UUID] = label
+				}
+				return nil
+			},
+		})
+		if p == nil {
+			return err
+		}
+
+		if jsonOut {
+			PrintJSON(p)
+		} else {
+			fmt.Printf("Pipeline #%d: %s (%s)\n", p.BuildNumber, pipeStateLabel(p.State), FormatDuration(p.DurationSecs))
+			for _, s := range steps {
+				if s.State == nil || s.State.Result == nil || s.State.Result.Name == "SUCCESSFUL" ||
+					s.State.Result.Name == "NOT_RUN" || s.State.Result.Name == "STOPPED" || logLines <= 0 {
+					continue
+				}
+				log, lerr := client.GetPipelineStepLog(bitbucket.GetPipelineStepLogArgs{
+					Workspace: workspace, RepoSlug: repoSlug, PipelineUUID: trailing[0], StepUUID: s.UUID,
+				})
+				if lerr != nil {
+					continue
+				}
+				fmt.Printf("\n--- %s (%s), last %d lines ---\n%s\n", s.Name, s.State.Result.Name, logLines, lastLines(string(log), logLines))
+			}
+		}
+
+		switch {
+		case errors.Is(err, bitbucket.ErrWaitTimeout):
+			return fmt.Errorf("pipeline #%d still %s after %s", p.BuildNumber, pipeStateLabel(p.State), timeout)
+		case err != nil:
+			return err
+		case p.State.Result == nil:
+			return fmt.Errorf("pipeline #%d is %s", p.BuildNumber, pipeStateLabel(p.State))
+		case p.State.Result.Name != "SUCCESSFUL":
+			return fmt.Errorf("pipeline #%d finished %s", p.BuildNumber, p.State.Result.Name)
+		}
+		return nil
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(pipelinesCmd)
+	pipelinesCmd.AddCommand(pipelinesWatchCmd)
+	pipelinesWatchCmd.Flags().Duration("interval", 15*time.Second, "Poll interval")
+	pipelinesWatchCmd.Flags().Duration("timeout", 0, "Give up after this long (0 = no limit)")
+	pipelinesWatchCmd.Flags().Int("log-lines", 30, "Log lines to print from each failed step (0 = none)")
 	pipelinesCmd.AddCommand(pipelinesListCmd)
 	pipelinesCmd.AddCommand(pipelinesGetCmd)
 	pipelinesCmd.AddCommand(pipelinesTriggerCmd)
