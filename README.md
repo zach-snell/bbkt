@@ -175,6 +175,7 @@ bbkt prs comments [list | add | resolve | unresolve]   # --content, --parent, --
 bbkt pipelines list                        # --status SUCCESSFUL|FAILED|INPROGRESS
 bbkt pipelines get <pipeline-uuid>
 bbkt pipelines trigger --ref-name <branch> [--ref-type branch|tag|bookmark]
+bbkt pipelines trigger --ref-name main --pattern build --var FLAVOUR=release [--secured-var KEY=VALUE]
 bbkt pipelines stop <pipeline-uuid>
 bbkt pipelines steps <pipeline-uuid>
 bbkt pipelines log <pipeline-uuid> <step-uuid>

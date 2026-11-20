@@ -23,6 +23,7 @@ Alias: pipe`,
   bbkt pipelines list --status FAILED         # only failed
   bbkt pipelines trigger -r main              # run default pipeline on main
   bbkt pipelines trigger -r feature/x --pattern deploy   # run a custom: pipeline
+  bbkt pipelines trigger -r main --pattern build --var FLAVOUR=release   # with variables
   bbkt pipelines steps {pipeline-uuid}
   bbkt pipelines log {pipeline-uuid} {step-uuid}
   bbkt pipelines stop {pipeline-uuid}`,
@@ -148,6 +149,17 @@ var pipelinesTriggerCmd = &cobra.Command{
 		refName, _ := cmd.Flags().GetString("ref-name")
 		refType, _ := cmd.Flags().GetString("ref-type")
 		pattern, _ := cmd.Flags().GetString("pattern")
+		plainVars, _ := cmd.Flags().GetStringArray("var")
+		securedVars, _ := cmd.Flags().GetStringArray("secured-var")
+		variables, err := parsePipelineVars(plainVars, false)
+		if err != nil {
+			return err
+		}
+		secured, err := parsePipelineVars(securedVars, true)
+		if err != nil {
+			return err
+		}
+		variables = append(variables, secured...)
 
 		interactive := false
 		if refName == "" {
@@ -207,6 +219,7 @@ var pipelinesTriggerCmd = &cobra.Command{
 			RefName:   refName,
 			RefType:   refType,
 			Pattern:   pattern,
+			Variables: variables,
 		})
 		if err != nil {
 			return err
@@ -345,4 +358,25 @@ func init() {
 	// No -p shorthand: it collides with the global persistent --profile (-p),
 	// which panics cobra when the flags merge. Long --pattern only.
 	pipelinesTriggerCmd.Flags().String("pattern", "", "Name of a 'custom:' pipeline from bitbucket-pipelines.yml (omit to run the branch's default pipeline)")
+	pipelinesTriggerCmd.Flags().StringArray("var", nil, "Pipeline variable KEY=VALUE (repeatable)")
+	pipelinesTriggerCmd.Flags().StringArray("secured-var", nil, "Secured pipeline variable KEY=VALUE, masked in logs (repeatable)")
+}
+
+// parsePipelineVars turns KEY=VALUE flag values into pipeline variables.
+// Only the first '=' splits, so values may contain '='.
+func parsePipelineVars(kvs []string, secured bool) ([]bitbucket.PipelineVariable, error) {
+	vars := make([]bitbucket.PipelineVariable, 0, len(kvs))
+	for i, kv := range kvs {
+		key, value, ok := strings.Cut(kv, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			if secured {
+				// Never echo a secured argument: it may hold the secret.
+				return nil, fmt.Errorf("invalid --secured-var #%d: want KEY=VALUE", i+1)
+			}
+			return nil, fmt.Errorf("invalid pipeline variable %q: want KEY=VALUE", kv)
+		}
+		vars = append(vars, bitbucket.PipelineVariable{Key: key, Value: value, Secured: secured})
+	}
+	return vars, nil
 }

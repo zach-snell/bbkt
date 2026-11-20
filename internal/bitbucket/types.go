@@ -319,9 +319,9 @@ type PipelineSelector struct {
 
 // PipelineVariable represents a pipeline variable.
 type PipelineVariable struct {
-	Key     string `json:"key"`
-	Value   string `json:"value"`
-	Secured bool   `json:"secured"`
+	Key     string `json:"key" jsonschema:"Variable name, e.g. FLAVOUR"`
+	Value   string `json:"value" jsonschema:"Variable value"`
+	Secured bool   `json:"secured,omitempty" jsonschema:"Mask the value in pipeline logs and the UI"`
 }
 
 // MergePRRequest is the body for merging a pull request.

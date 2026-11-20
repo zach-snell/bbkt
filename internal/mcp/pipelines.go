@@ -10,18 +10,19 @@ import (
 )
 
 type ManagePipelinesArgs struct {
-	Action       string `json:"action" jsonschema:"Action to perform: 'list', 'get', 'trigger', 'stop', 'list-steps', 'get-step-log'" jsonschema_enum:"list,get,trigger,stop,list-steps,get-step-log"`
-	Workspace    string `json:"workspace" jsonschema:"Workspace slug"`
-	RepoSlug     string `json:"repo_slug" jsonschema:"Repository slug"`
-	PipelineUUID string `json:"pipeline_uuid,omitempty" jsonschema:"Pipeline UUID"`
-	StepUUID     string `json:"step_uuid,omitempty" jsonschema:"Step UUID (for 'get-step-log')"`
-	RefType      string `json:"ref_type,omitempty" jsonschema:"Reference type: branch or tag (default branch) (for 'trigger')"`
-	RefName      string `json:"ref_name,omitempty" jsonschema:"Branch or tag name to run pipeline on (for 'trigger')"`
-	Pattern      string `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger (for 'trigger')"`
-	Page         int    `json:"page,omitempty" jsonschema:"Page number"`
-	Pagelen      int    `json:"pagelen,omitempty" jsonschema:"Results per page"`
-	Sort         string `json:"sort,omitempty" jsonschema:"Sort field"`
-	Status       string `json:"status,omitempty" jsonschema:"Filter by status"`
+	Action       string                       `json:"action" jsonschema:"Action to perform: 'list', 'get', 'trigger', 'stop', 'list-steps', 'get-step-log'" jsonschema_enum:"list,get,trigger,stop,list-steps,get-step-log"`
+	Workspace    string                       `json:"workspace" jsonschema:"Workspace slug"`
+	RepoSlug     string                       `json:"repo_slug" jsonschema:"Repository slug"`
+	PipelineUUID string                       `json:"pipeline_uuid,omitempty" jsonschema:"Pipeline UUID"`
+	StepUUID     string                       `json:"step_uuid,omitempty" jsonschema:"Step UUID (for 'get-step-log')"`
+	RefType      string                       `json:"ref_type,omitempty" jsonschema:"Reference type: branch or tag (default branch) (for 'trigger')"`
+	RefName      string                       `json:"ref_name,omitempty" jsonschema:"Branch or tag name to run pipeline on (for 'trigger')"`
+	Pattern      string                       `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger (for 'trigger')"`
+	Variables    []bitbucket.PipelineVariable `json:"variables,omitempty" jsonschema:"Pipeline variables for this run, e.g. [{key: FLAVOUR, value: release}] (for 'trigger')"`
+	Page         int                          `json:"page,omitempty" jsonschema:"Page number"`
+	Pagelen      int                          `json:"pagelen,omitempty" jsonschema:"Results per page"`
+	Sort         string                       `json:"sort,omitempty" jsonschema:"Sort field"`
+	Status       string                       `json:"status,omitempty" jsonschema:"Filter by status"`
 }
 
 // ManagePipelinesHandler handles the consolidated pipeline operations.
@@ -69,6 +70,7 @@ func ManagePipelinesHandler(c *bitbucket.Client) func(context.Context, *mcp.Call
 				RefType:   args.RefType,
 				RefName:   args.RefName,
 				Pattern:   args.Pattern,
+				Variables: args.Variables,
 			})
 			if err != nil {
 				return ToolResultError(fmt.Sprintf("failed to trigger pipeline: %v", err)), nil, nil

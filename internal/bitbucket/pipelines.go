@@ -65,11 +65,12 @@ func (c *Client) GetPipeline(args GetPipelineArgs) (*Pipeline, error) {
 }
 
 type TriggerPipelineArgs struct {
-	Workspace string `json:"workspace" jsonschema:"Workspace slug"`
-	RepoSlug  string `json:"repo_slug" jsonschema:"Repository slug"`
-	RefName   string `json:"ref_name" jsonschema:"Branch or tag name to run pipeline on"`
-	RefType   string `json:"ref_type,omitempty" jsonschema:"Reference type: branch or tag (default branch)"`
-	Pattern   string `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger"`
+	Workspace string             `json:"workspace" jsonschema:"Workspace slug"`
+	RepoSlug  string             `json:"repo_slug" jsonschema:"Repository slug"`
+	RefName   string             `json:"ref_name" jsonschema:"Branch or tag name to run pipeline on"`
+	RefType   string             `json:"ref_type,omitempty" jsonschema:"Reference type: branch or tag (default branch)"`
+	Pattern   string             `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger"`
+	Variables []PipelineVariable `json:"variables,omitempty" jsonschema:"Pipeline variables for this run"`
 }
 
 // TriggerPipeline triggers a new pipeline run.
@@ -89,6 +90,7 @@ func (c *Client) TriggerPipeline(args TriggerPipelineArgs) (*Pipeline, error) {
 			RefType: refType,
 			RefName: args.RefName,
 		},
+		Variables: args.Variables,
 	}
 
 	if args.Pattern != "" {

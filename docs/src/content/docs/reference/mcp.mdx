@@ -92,6 +92,7 @@ Interact directly with your team inside active pull requests.
 ### `manage_pipelines`
 Trigger and monitor standard Bitbucket pipelines integration tests and deployments.
 - **Actions:** `list`, `get`, `trigger`, `stop`, `list-steps`, `get-step-log`
+- **`trigger` options:** `ref_name`, `ref_type`, `pattern` (custom pipeline), `variables` (`[{"key": "FLAVOUR", "value": "release", "secured": false}]`)
 - **Required scope:** `pipeline`
 
 ### `manage_issues`
