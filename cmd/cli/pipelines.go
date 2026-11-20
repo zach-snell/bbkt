@@ -61,7 +61,7 @@ var pipelinesListCmd = &cobra.Command{
 				return
 			}
 			t := NewTable()
-			t.Header("#", "State", "Branch", "Duration", "Created")
+			t.Header("#", "State", "Branch", "Pipeline", "Creator", "Duration", "Created")
 			for _, p := range result.Values {
 				state := "-"
 				if p.State != nil {
@@ -74,10 +74,20 @@ var pipelinesListCmd = &cobra.Command{
 				if p.Target != nil && p.Target.RefName != "" {
 					branch = p.Target.RefName
 				}
+				name := p.Target.PipelineName()
+				if name == "" {
+					name = "-"
+				}
+				creator := "-"
+				if p.Creator != nil && p.Creator.DisplayName != "" {
+					creator = p.Creator.DisplayName
+				}
 				t.Row(
 					fmt.Sprintf("%d", p.BuildNumber),
 					state,
 					branch,
+					name,
+					creator,
 					FormatDuration(p.DurationSecs),
 					FormatTime(p.CreatedOn),
 				)
@@ -122,6 +132,10 @@ var pipelinesGetCmd = &cobra.Command{
 			if result.Target != nil {
 				KV("Branch", result.Target.RefName)
 				KV("Ref Type", result.Target.RefType)
+				KV("Pipeline", result.Target.PipelineName())
+				if result.Target.Commit != nil {
+					KV("Commit", result.Target.Commit.Hash)
+				}
 			}
 			KV("Trigger", result.TriggerName)
 			if result.Creator != nil {

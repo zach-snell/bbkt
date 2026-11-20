@@ -226,9 +226,24 @@ type PipeStage struct {
 
 // PipeTarget is the pipeline target.
 type PipeTarget struct {
-	Type    string `json:"type"`
-	RefType string `json:"ref_type"`
-	RefName string `json:"ref_name"`
+	Type     string            `json:"type"`
+	RefType  string            `json:"ref_type"`
+	RefName  string            `json:"ref_name"`
+	Selector *PipelineSelector `json:"selector,omitempty"`
+	Commit   *Commit           `json:"commit,omitempty"`
+}
+
+// PipelineName is the bitbucket-pipelines.yml entry the run came from: the
+// custom pipeline's name, or the selector type (default, branches, ...).
+func (t *PipeTarget) PipelineName() string {
+	switch {
+	case t == nil || t.Selector == nil:
+		return ""
+	case t.Selector.Type == "custom" && t.Selector.Pattern != "":
+		return t.Selector.Pattern
+	default:
+		return t.Selector.Type
+	}
 }
 
 // PipelineStep represents a single step in a pipeline.
