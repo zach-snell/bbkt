@@ -10,9 +10,9 @@ import (
 )
 
 type ManageRepositoriesArgs struct {
-	Action      string `json:"action" jsonschema:"Action to perform: 'list', 'get', 'create', 'delete'" jsonschema_enum:"list,get,create,delete"`
+	Action      string `json:"action" jsonschema:"Action to perform: 'list', 'get', 'create', 'delete', 'list-downloads' (files in the repo's Downloads, newest first)" jsonschema_enum:"list,get,create,delete,list-downloads"`
 	Workspace   string `json:"workspace" jsonschema:"Workspace slug"`
-	RepoSlug    string `json:"repo_slug,omitempty" jsonschema:"Repository slug (required for 'get', 'create', 'delete')"`
+	RepoSlug    string `json:"repo_slug,omitempty" jsonschema:"Repository slug (required for 'get', 'create', 'delete', 'list-downloads')"`
 	Description string `json:"description,omitempty" jsonschema:"Repository description (for 'create')"`
 	Language    string `json:"language,omitempty" jsonschema:"Primary programming language (for 'create')"`
 	IsPrivate   *bool  `json:"is_private,omitempty" jsonschema:"Whether the repo is private (default true, for 'create')"`
@@ -56,6 +56,22 @@ func ManageRepositoriesHandler(c *bitbucket.Client) func(context.Context, *mcp.C
 				return ToolResultError(fmt.Sprintf("failed to get repository: %v", err)), nil, nil
 			}
 			data, _ := json.MarshalIndent(repo, "", "  ")
+			return ToolResultText(string(data)), nil, nil
+
+		case "list-downloads":
+			if args.Workspace == "" || args.RepoSlug == "" {
+				return ToolResultError("workspace and repo_slug are required for 'list-downloads' action"), nil, nil
+			}
+			result, err := c.ListDownloads(bitbucket.ListDownloadsArgs{
+				Workspace: args.Workspace,
+				RepoSlug:  args.RepoSlug,
+				Pagelen:   args.Pagelen,
+				Page:      args.Page,
+			})
+			if err != nil {
+				return ToolResultError(fmt.Sprintf("failed to list downloads: %v", err)), nil, nil
+			}
+			data, _ := json.MarshalIndent(result, "", "  ")
 			return ToolResultText(string(data)), nil, nil
 
 		case "create":

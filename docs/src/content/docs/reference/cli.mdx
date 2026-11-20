@@ -85,6 +85,13 @@ bbkt repos create [workspace] [repo-slug] [--description ...] [--private]
 bbkt repos delete <workspace> <repo-slug> [--yes]       # or <workspace/repo-slug>; never inferred
 ```
 
+### `bbkt downloads`
+
+```bash
+bbkt downloads list [workspace] [repo-slug]             # Downloads section, newest first
+bbkt downloads get [workspace] [repo-slug] <file-name> [-o path] [--force]
+```
+
 ### `bbkt prs`
 
 ```bash

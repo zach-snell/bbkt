@@ -161,6 +161,7 @@ bbkt profile [use <name> | refresh]        # manage profiles
 bbkt workspaces [list | get <workspace>]
 bbkt repos     [list | get | create | delete]
                  [--query <q>] [--role <owner|admin|contributor|member>]
+bbkt downloads [list | get <file-name> [-o path]]   # repo Downloads (pipeline artifacts)
 
 # Pull requests (workspace/repo inferred from git)
 bbkt prs list                              # --state OPEN|MERGED|SUPERSEDED|DECLINED
@@ -295,7 +296,7 @@ When `BITBUCKET_ACCESS_TOKEN` *or* (`BITBUCKET_USERNAME` + `BITBUCKET_API_TOKEN`
 | Tool | Operations | Required Scope |
 |---|---|---|
 | `manage_workspaces` | list, get | — |
-| `manage_repositories` | list, get, create, delete | `repository` |
+| `manage_repositories` | list, get, create, delete, list-downloads | `repository` |
 | `manage_refs` | list, create, delete branches and tags | `repository` |
 | `manage_commits` | list, get, diff, diffstat | `repository` |
 | `manage_source` | read, list_directory, get_history, search, write, delete | `repository` |

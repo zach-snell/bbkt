@@ -115,6 +115,12 @@ func (c *Client) canRefresh() bool {
 // do executes an HTTP request with auth headers.
 // An optional accept parameter overrides the default "application/json" Accept header.
 func (c *Client) do(method, path string, bodyData []byte, contentType string, accept ...string) (*http.Response, error) {
+	return c.doWith(c.http, method, path, bodyData, contentType, accept...)
+}
+
+// doWith is do on a caller-chosen http.Client (e.g. one without the 30s
+// whole-request timeout, for large downloads).
+func (c *Client) doWith(hc *http.Client, method, path string, bodyData []byte, contentType string, accept ...string) (*http.Response, error) {
 	if err := rejectDotSegments(path); err != nil {
 		return nil, err
 	}
@@ -152,7 +158,7 @@ func (c *Client) do(method, path string, bodyData []byte, contentType string, ac
 	}
 	req.Header.Set("Accept", acceptHeader)
 
-	resp, err := c.http.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
@@ -186,7 +192,7 @@ func (c *Client) do(method, path string, bodyData []byte, contentType string, ac
 			req2.Header.Set("Content-Type", contentType)
 		}
 		req2.Header.Set("Accept", acceptHeader)
-		return c.http.Do(req2)
+		return hc.Do(req2)
 	}
 
 	return resp, nil

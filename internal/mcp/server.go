@@ -159,7 +159,7 @@ func toolDefs() []toolDef {
 
 		// ─── Repositories ────────────────────────────────────────────────
 		defineTool("manage_repositories",
-			"Unified tool for listing, getting, creating, and deleting repositories",
+			"Unified tool for listing, getting, creating, and deleting repositories, and listing a repository's Downloads",
 			ManageRepositoriesHandler),
 
 		// ─── Branches & Tags ─────────────────────────────────────────────
