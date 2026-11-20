@@ -3,6 +3,7 @@ package bitbucket
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 )
 
 type ListPipelinesArgs struct {
@@ -70,25 +71,34 @@ type TriggerPipelineArgs struct {
 	RefName   string `json:"ref_name" jsonschema:"Branch or tag name to run pipeline on"`
 	RefType   string `json:"ref_type,omitempty" jsonschema:"Reference type: branch or tag (default branch)"`
 	Pattern   string `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger"`
+	Commit    string `json:"commit,omitempty" jsonschema:"Commit hash to run on. With ref_name: that ref at this commit. Alone: the bare commit (usually needs pattern)"`
 }
 
-// TriggerPipeline triggers a new pipeline run.
+var commitHashRe = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
+
+// TriggerPipeline triggers a new pipeline run on a ref, a ref at a commit, or a bare commit.
 func (c *Client) TriggerPipeline(args TriggerPipelineArgs) (*Pipeline, error) {
-	if args.Workspace == "" || args.RepoSlug == "" || args.RefName == "" {
-		return nil, fmt.Errorf("workspace, repo_slug, and ref_name are required")
+	if args.Workspace == "" || args.RepoSlug == "" || (args.RefName == "" && args.Commit == "") {
+		return nil, fmt.Errorf("workspace, repo_slug, and ref_name or commit are required")
 	}
 
-	refType := args.RefType
-	if refType == "" {
-		refType = "branch"
-	}
-
-	body := TriggerPipelineRequest{
-		Target: PipeTriggerTarget{
+	body := TriggerPipelineRequest{Target: PipeTriggerTarget{Type: "pipeline_commit_target"}}
+	if args.RefName != "" {
+		refType := args.RefType
+		if refType == "" {
+			refType = "branch"
+		}
+		body.Target = PipeTriggerTarget{
 			Type:    "pipeline_ref_target",
 			RefType: refType,
 			RefName: args.RefName,
-		},
+		}
+	}
+	if args.Commit != "" {
+		if !commitHashRe.MatchString(args.Commit) {
+			return nil, fmt.Errorf("commit must be a hex commit hash, got %q", args.Commit)
+		}
+		body.Target.Commit = &PipeCommitRef{Type: "commit", Hash: args.Commit}
 	}
 
 	if args.Pattern != "" {

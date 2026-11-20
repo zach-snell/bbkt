@@ -111,7 +111,7 @@ bbkt prs comments unresolve [workspace] [repo-slug] <pr-id> <comment-id>
 ```bash
 bbkt pipelines list [workspace] [repo-slug]         # --status SUCCESSFUL|FAILED|INPROGRESS
 bbkt pipelines get [workspace] [repo-slug] <pipeline-uuid>
-bbkt pipelines trigger [workspace] [repo-slug] --ref-name <branch> [--ref-type branch|tag] [--pattern <custom-name>]
+bbkt pipelines trigger [workspace] [repo-slug] --ref-name <branch> [--ref-type branch|tag] [--pattern <custom-name>] [--commit <hash>]
 bbkt pipelines stop [workspace] [repo-slug] <pipeline-uuid>
 bbkt pipelines steps [workspace] [repo-slug] <pipeline-uuid>
 bbkt pipelines log [workspace] [repo-slug] <pipeline-uuid> <step-uuid>

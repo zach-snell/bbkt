@@ -23,6 +23,7 @@ Alias: pipe`,
   bbkt pipelines list --status FAILED         # only failed
   bbkt pipelines trigger -r main              # run default pipeline on main
   bbkt pipelines trigger -r feature/x --pattern deploy   # run a custom: pipeline
+  bbkt pipelines trigger -r main --commit 1a2b3c4d --pattern deploy   # rerun at an older commit
   bbkt pipelines steps {pipeline-uuid}
   bbkt pipelines log {pipeline-uuid} {step-uuid}
   bbkt pipelines stop {pipeline-uuid}`,
@@ -148,9 +149,10 @@ var pipelinesTriggerCmd = &cobra.Command{
 		refName, _ := cmd.Flags().GetString("ref-name")
 		refType, _ := cmd.Flags().GetString("ref-type")
 		pattern, _ := cmd.Flags().GetString("pattern")
+		commit, _ := cmd.Flags().GetString("commit")
 
 		interactive := false
-		if refName == "" {
+		if refName == "" && commit == "" {
 			if outputJSON(cmd) {
 				return fmt.Errorf("missing required flag --ref-name under --json (interactive prompts are disabled in --json mode)")
 			}
@@ -192,8 +194,8 @@ var pipelinesTriggerCmd = &cobra.Command{
 			}
 		}
 
-		if refName == "" {
-			return fmt.Errorf("ref-name is required")
+		if refName == "" && commit == "" {
+			return fmt.Errorf("ref-name or commit is required")
 		}
 
 		if interactive {
@@ -207,6 +209,7 @@ var pipelinesTriggerCmd = &cobra.Command{
 			RefName:   refName,
 			RefType:   refType,
 			Pattern:   pattern,
+			Commit:    commit,
 		})
 		if err != nil {
 			return err
@@ -345,4 +348,5 @@ func init() {
 	// No -p shorthand: it collides with the global persistent --profile (-p),
 	// which panics cobra when the flags merge. Long --pattern only.
 	pipelinesTriggerCmd.Flags().String("pattern", "", "Name of a 'custom:' pipeline from bitbucket-pipelines.yml (omit to run the branch's default pipeline)")
+	pipelinesTriggerCmd.Flags().String("commit", "", "Commit hash to run on: with --ref-name, that branch at this commit; alone, the bare commit (pair with --pattern)")
 }

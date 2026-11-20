@@ -18,6 +18,7 @@ type ManagePipelinesArgs struct {
 	RefType      string `json:"ref_type,omitempty" jsonschema:"Reference type: branch or tag (default branch) (for 'trigger')"`
 	RefName      string `json:"ref_name,omitempty" jsonschema:"Branch or tag name to run pipeline on (for 'trigger')"`
 	Pattern      string `json:"pattern,omitempty" jsonschema:"Custom pipeline pattern name to trigger (for 'trigger')"`
+	Commit       string `json:"commit,omitempty" jsonschema:"Commit hash to run on (for 'trigger'). With ref_name: that ref at this commit; alone: the bare commit"`
 	Page         int    `json:"page,omitempty" jsonschema:"Page number"`
 	Pagelen      int    `json:"pagelen,omitempty" jsonschema:"Results per page"`
 	Sort         string `json:"sort,omitempty" jsonschema:"Sort field"`
@@ -60,8 +61,8 @@ func ManagePipelinesHandler(c *bitbucket.Client) func(context.Context, *mcp.Call
 			return ToolResultText(string(data)), nil, nil
 
 		case "trigger":
-			if args.RefName == "" {
-				return ToolResultError("ref_name is required for 'trigger' action"), nil, nil
+			if args.RefName == "" && args.Commit == "" {
+				return ToolResultError("ref_name or commit is required for 'trigger' action"), nil, nil
 			}
 			pipe, err := c.TriggerPipeline(bitbucket.TriggerPipelineArgs{
 				Workspace: args.Workspace,
@@ -69,6 +70,7 @@ func ManagePipelinesHandler(c *bitbucket.Client) func(context.Context, *mcp.Call
 				RefType:   args.RefType,
 				RefName:   args.RefName,
 				Pattern:   args.Pattern,
+				Commit:    args.Commit,
 			})
 			if err != nil {
 				return ToolResultError(fmt.Sprintf("failed to trigger pipeline: %v", err)), nil, nil

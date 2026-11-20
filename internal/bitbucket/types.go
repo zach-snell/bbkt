@@ -306,9 +306,16 @@ type TriggerPipelineRequest struct {
 // PipeTriggerTarget specifies the pipeline trigger target.
 type PipeTriggerTarget struct {
 	Type     string            `json:"type"`
-	RefType  string            `json:"ref_type"`
-	RefName  string            `json:"ref_name"`
+	RefType  string            `json:"ref_type,omitempty"`
+	RefName  string            `json:"ref_name,omitempty"`
+	Commit   *PipeCommitRef    `json:"commit,omitempty"`
 	Selector *PipelineSelector `json:"selector,omitempty"`
+}
+
+// PipeCommitRef pins a pipeline trigger to a commit.
+type PipeCommitRef struct {
+	Type string `json:"type"`
+	Hash string `json:"hash"`
 }
 
 // PipelineSelector for custom pipelines.
